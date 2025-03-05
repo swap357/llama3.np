@@ -1,0 +1,69 @@
+benchmark_top_k Benchmark Summary
+========================
+
+Timestamp: 2025-03-04 19:52:59
+Command: python benchmarks/benchmark_top_k.py --batch 32 --vocab 32000 --iter 100 --warmup 20 --k 50
+
+System Information:
+------------------
+os: Darwin
+os_version: Darwin Kernel Version 24.2.0: Fri Dec  6 19:02:41 PST 2024; root:xnu-11215.61.5~2/RELEASE_ARM64_T6030
+processor: arm
+machine: arm64
+python_version: 3.12.8
+numpy_version: 2.1.3
+
+Benchmark Parameters:
+-------------------
+batch: 32
+vocab: 32000
+iter: 100
+warmup: 20
+k: 50
+
+Implementation Verification:
+-------------------------
+Basic Numba: ✅ Correct
+Optimized Numba: ✅ Correct
+Parallel Numba: ✅ Correct
+
+Performance Results:
+------------------
+NumPy: 7.2343 ms per call
+00 ms
+Basic Numba: 6.5339 ms per call
+Optimized Numba: 6.2779 ms per call
+Parallel Numba: 1.1220 ms per call
+Basic Numba: 6.5339 ms per call
+
+Speedup Results:
+--------------
+speedup: 6.45x
+
+Raw Output:
+----------
+Benchmarking top_k_logits with shape=(32, 32000), k=50, iterations=100
+
+Benchmarking NumPy implementation...
+NumPy: 7.2343 ms per call
+
+Verifying implementations...
+✅ Basic Numba implementation produces correct results
+✅ Optimized Numba implementation produces correct results
+✅ Parallel Numba implementation produces correct results
+
+Benchmarking basic Numba implementation...
+Compilation took 7.00 ms
+Basic Numba: 6.5339 ms per call
+
+Benchmarking optimized Numba implementation...
+Optimized Numba: 6.2779 ms per call
+
+Benchmarking parallel Numba implementation...
+Parallel Numba: 1.1220 ms per call
+
+===== RESULTS SUMMARY =====
+NumPy: 7.2343 ms per call
+Basic Numba: 6.5339 ms per call (speedup: 1.11x)
+Optimized Numba: 6.2779 ms per call (speedup: 1.15x)
+Parallel Numba: 1.1220 ms per call (speedup: 6.45x)

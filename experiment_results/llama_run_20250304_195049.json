@@ -1,0 +1,33 @@
+{
+  "metadata": {
+    "timestamp": "2025-03-04T19:50:49.442399",
+    "system_info": {
+      "os": "Darwin",
+      "os_version": "Darwin Kernel Version 24.2.0: Fri Dec  6 19:02:41 PST 2024; root:xnu-11215.61.5~2/RELEASE_ARM64_T6030",
+      "processor": "arm",
+      "machine": "arm64",
+      "python_version": "3.12.8",
+      "numpy_version": "2.1.3"
+    },
+    "command": "python llama3.py --batch-size 32 'once upon a time'"
+  },
+  "model_args": {
+    "dim": 288,
+    "n_layers": 6,
+    "n_heads": 6,
+    "n_kv_heads": null,
+    "vocab_size": 32000,
+    "max_seq_len": 256,
+    "max_new_tokens": 200,
+    "norm_eps": 1e-06,
+    "max_batch_size": 32
+  },
+  "results": {
+    "total_tokens": 4485,
+    "elapsed_time": 7.07,
+    "tokens_per_second": 634,
+    "model_output": ", there wa a little girl named Lily. She loved to play outside in the sunhine. One day, she went to the park with her mommy. They played on the swing and went down the slide. \nAfter a while, Lily' mommy said it wa time to go home. Lily didn't want to leave yet. She wanted to stay and play more. But her mommy said they had to go. \nWhen they got home, Lily' mommy made her some hot chocolate. Lily felt warm and cozy. She loved spending time with her mommy. She felt happy and loved.",
+    "performance_stats": "Performance: 4485 tokens in 7.07s (634 tokens/s)\n\n=== Performance Statistics ===\nOperation                                Calls    Total(ms)    Avg(ms)    %Total  \n--------------------------------------------------------------------------------\ngenerate.iterations                      140          7069.82ms    50.50ms   100.0%\n  llama.total                            140          6961.37ms    49.72ms    98.5%\n    llama.layers                         140          1870.54ms    13.36ms    26.5%\n      transformer_block.total            840          1867.30ms     2.22ms    26.4%\n        transformer_block.feedforward    840           985.10ms     1.17ms    13.9%\n        transformer_block.attention      840           851.41ms     1.01ms    12.0%\n    llama.norm                           140             3.18ms     0.02ms     0.0%\n    llama.head                           140          5085.10ms    36.32ms    71.9%",
+    "timing_stats": {}
+  }
+}

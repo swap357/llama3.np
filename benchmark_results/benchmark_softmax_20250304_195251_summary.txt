@@ -1,0 +1,68 @@
+benchmark_softmax Benchmark Summary
+========================
+
+Timestamp: 2025-03-04 19:52:51
+Command: python benchmarks/benchmark_softmax.py --batch 32 --vocab 32000 --iter 100 --warmup 20
+
+System Information:
+------------------
+os: Darwin
+os_version: Darwin Kernel Version 24.2.0: Fri Dec  6 19:02:41 PST 2024; root:xnu-11215.61.5~2/RELEASE_ARM64_T6030
+processor: arm
+machine: arm64
+python_version: 3.12.8
+numpy_version: 2.1.3
+
+Benchmark Parameters:
+-------------------
+batch: 32
+vocab: 32000
+iter: 100
+warmup: 20
+
+Implementation Verification:
+-------------------------
+Basic Numba: ✅ Correct
+FastMath Numba: ✅ Correct
+Parallel Numba: ✅ Correct
+
+Performance Results:
+------------------
+NumPy: 2.0277 ms per call
+42 ms
+Basic Numba: 3.4350 ms per call
+FastMath Numba: 2.9752 ms per call
+Parallel Numba: 0.5624 ms per call
+Basic Numba: 3.4350 ms per call
+
+Speedup Results:
+--------------
+speedup: 3.61x
+
+Raw Output:
+----------
+Benchmarking softmax with shape=(32, 32000), iterations=100
+
+Benchmarking NumPy implementation...
+NumPy: 2.0277 ms per call
+
+Verifying implementations...
+✅ Basic Numba implementation produces correct results
+✅ FastMath Numba implementation produces correct results
+✅ Parallel Numba implementation produces correct results
+
+Benchmarking basic Numba implementation...
+Compilation took 3.42 ms
+Basic Numba: 3.4350 ms per call
+
+Benchmarking FastMath Numba implementation...
+FastMath Numba: 2.9752 ms per call
+
+Benchmarking parallel Numba implementation...
+Parallel Numba: 0.5624 ms per call
+
+===== RESULTS SUMMARY =====
+NumPy: 2.0277 ms per call
+Basic Numba: 3.4350 ms per call (speedup: 0.59x)
+FastMath Numba: 2.9752 ms per call (speedup: 0.68x)
+Parallel Numba: 0.5624 ms per call (speedup: 3.61x)

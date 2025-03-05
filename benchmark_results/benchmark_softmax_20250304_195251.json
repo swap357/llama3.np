@@ -1,0 +1,37 @@
+{
+  "metadata": {
+    "timestamp": "2025-03-04T19:52:51.655980",
+    "system_info": {
+      "os": "Darwin",
+      "os_version": "Darwin Kernel Version 24.2.0: Fri Dec  6 19:02:41 PST 2024; root:xnu-11215.61.5~2/RELEASE_ARM64_T6030",
+      "processor": "arm",
+      "machine": "arm64",
+      "python_version": "3.12.8",
+      "numpy_version": "2.1.3"
+    },
+    "command": "python benchmarks/benchmark_softmax.py --batch 32 --vocab 32000 --iter 100 --warmup 20"
+  },
+  "parameters": {
+    "batch": 32,
+    "vocab": 32000,
+    "iter": 100,
+    "warmup": 20
+  },
+  "results": {
+    "verification": {
+      "Basic Numba": true,
+      "FastMath Numba": true,
+      "Parallel Numba": true
+    },
+    "timings": {
+      "NumPy": 2.0277,
+      "42 ms\nBasic Numba": 3.435,
+      "FastMath Numba": 2.9752,
+      "Parallel Numba": 0.5624,
+      "Basic Numba": 3.435
+    },
+    "speedups": {
+      "speedup": 3.61
+    }
+  }
+}
