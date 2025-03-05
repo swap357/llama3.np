@@ -1,4 +1,4 @@
-# LLaMA Implementation Analysis
+# llama3 numpy implementation study
 
 
 
