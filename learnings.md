@@ -41,6 +41,12 @@ large matrix multiplication: [B, 1, D] @ [D, VS] → [B, 1, VS]
 = 294,912,000 floating-point operations
 ```
 
+where
+B: Batch size 
+D: hidden dimension
+VS: Vocab size
+
+
 why expensive ?
 - loads the entire vocabulary matrix (288 × 32000 ≈ 9.2M parameters)
 - output is large (32 × 32000 = 1M logits)
