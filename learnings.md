@@ -28,9 +28,9 @@ generate.iteration                       254          5015.73ms    19.75ms    18
     sampling.compute                     254            80.34ms     0.32ms     0.3%
 ```
 
-#### llama.head
+### llama.head
 
-what?
+what is it?
 ```
 large matrix multiplication: [B, 1, D] @ [D, VS] → [B, 1, VS]
 [B, 1, D] @ [D, VS] → [B, 1, VS]
