@@ -28,9 +28,12 @@ generate.iteration                       254          5015.73ms    19.75ms    18
     sampling.compute                     254            80.34ms     0.32ms     0.3%
 ```
 
-### llama.head
+### llama.head @ [llama3.py line 311](https://github.com/swap357/llama3.np/blob/ef472e3824f4cdf1caf1dcd9556388f28a6a1b1a/llama3.py#L311)
+
 
 what is it?
+
+
 ```
 large matrix multiplication: [B, 1, D] @ [D, VS] → [B, 1, VS]
 [B, 1, D] @ [D, VS] → [B, 1, VS]
