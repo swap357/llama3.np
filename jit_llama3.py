@@ -550,6 +550,40 @@ def profile_bottlenecks(model, input_ids):
         _, _ = apply_rotary_emb(xq, xk, freqs_cos, freqs_sin)
     timers["rope"] = (time.time() - start) / 10
     
+    # Time SiLU activation
+    feed_forward = layer.feed_forward
+    gate_proj = hidden @ feed_forward.gate_weight
+    
+    start = time.time()
+    for _ in range(10):
+        _ = silu(gate_proj)
+    timers["silu_numpy"] = (time.time() - start) / 10
+    
+    start = time.time()
+    for _ in range(10):
+        _ = silu_jit(gate_proj)
+    timers["silu_jit"] = (time.time() - start) / 10
+    
+    # Time complete forward pass for one token
+    
+    # Time the initial token generation (prefill phase)
+    start = time.time()
+    for _ in range(10):
+        _ = model.forward(input_ids, 0)
+    timers["forward_prefill"] = (time.time() - start) / 10
+    
+    # Time the subsequent token generation (decode phase)
+    # First get the first token
+    logits = model.forward(input_ids, 0)
+    next_id = logits.argmax(-1)
+    next_id = next_id.reshape(batch_size, 1)
+    
+    start = time.time()
+    for _ in range(10):
+        # Time just the decoding of the next token
+        _ = model.forward(next_id, input_ids.shape[1])
+    timers["forward_decode"] = (time.time() - start) / 10
+    
     # Profile overall model forward pass
     start = time.time()
     _ = model.forward(input_ids, 0)
@@ -568,6 +602,11 @@ def profile_bottlenecks(model, input_ids):
             percentage = (duration / total) * 100
             print(f"{op}: {percentage:.1f}%")
     
+    # Calculate SiLU speedup
+    if "silu_numpy" in timers and "silu_jit" in timers:
+        speedup = timers["silu_numpy"] / timers["silu_jit"]
+        print(f"\nSiLU JIT speedup: {speedup:.2f}x")
+    
     return timers
 
 if __name__ == '__main__':
@@ -581,7 +620,7 @@ if __name__ == '__main__':
             # Just check data types of model components
             model = JitLlama("./stories15M.model.npz", args)
             
-            print("==== DATA TYPE INSPECTION ====")
+            print("==== JIT_LLAMA DATA TYPE INSPECTION ====")
             print(f"Token embedding dtype: {model.tok_embedding.dtype}")
             print(f"LM head dtype: {model.lm_head.dtype}")
             print(f"Freq cos dtype: {model.freqs_cos.dtype}")
@@ -631,12 +670,12 @@ if __name__ == '__main__':
             model = JitLlama("./stories15M.model.npz", args)
             profile_operation(model, "activation")
             
-        elif sys.argv[1] == "--compare":
-            # Compare with simple_llama3
+        elif sys.argv[1] == "--compare-main":
+            # Compare with llama3.py (main implementation)
             prompt = "I have a dream" if len(sys.argv) <= 2 else sys.argv[2]
             max_tokens = 50  # Generate same number of tokens for fair comparison
             
-            # Run our model
+            # Run our optimized JIT model
             print(f"\nRunning jit_llama3 with prompt: {prompt}")
             model = JitLlama("./stories15M.model.npz", args)
             
@@ -661,9 +700,9 @@ if __name__ == '__main__':
             jit_tokens_per_sec = (token_count - input_ids.shape[1]) / elapsed
             print(f"\n\nJIT Llama: {token_count} tokens, {elapsed:.2f}s, {round(jit_tokens_per_sec)} tokens/s")
             
-            # For comparison, print command to run on simple_llama3
-            print(f"\nTo compare with simple_llama3, run:")
-            print(f"python3 simple_llama3.py \"{prompt}\" | grep \"tokens/s\"")
+            # For comparison, print command to run on the main implementation
+            print(f"\nTo compare with main llama3.py, run:")
+            print(f"python3 llama3.py \"{prompt}\" | grep \"tokens/s\"")
             
         else:
             # Treat as normal prompt
