@@ -83,9 +83,25 @@ Our immediate next steps are:
 We've completed our first set of measurements and here are the key findings:
 
 #### Performance Baseline
-- Model Memory Usage: ~108 MB
-- Inference Speed: ~58-64 tokens/second
-- Startup Time: ~0.20 seconds (model loading)
+- Model Memory Usage: 107.77 MB (measured with psutil)
+- Inference Speed: 58.32 tokens/second with short prompt
+- Model Complexity: 6 layers, 6 heads, 288 hidden dimension (small model)
+- Startup Time: 0.20 seconds (model loading)
+- Tokenization Time: 0.05 seconds for a short prompt
+
+**Raw Performance Metrics (from profile_inference.py):**
+```
+Model Memory: 107.77 MB
+Tokens Generated: 20
+Inference Time: 0.34 seconds
+Performance: 58.32 tokens/second
+
+Time Breakdown:
+  Model Loading: 0.20s
+  Tokenization: 0.05s
+  Inference: 0.34s
+  Decoding: 0.00s
+```
 
 #### Key Bottlenecks (from profiling)
 From cProfile results and our custom profiling, we've identified these bottlenecks:
@@ -93,27 +109,61 @@ From cProfile results and our custom profiling, we've identified these bottlenec
 1. **Llama.__call__ method** (0.457s total, ~48% of execution time): 
    - This is the main inference function that processes input tokens
    - High cumulative time suggests it's the primary bottleneck
+   - From the profiling output: `40 0.457 0.011 0.680 0.017 llama3.py:228(__call__)`
 
 2. **Matrix Operations in Attention Layer** (0.143s in Attention.__call__, ~15% of time):
    - The attention computation is a significant bottleneck
    - This includes the key-query-value projections and attention score calculation
+   - From the profiling output: `240 0.143 0.001 0.145 0.001 llama3.py:84(__call__)`
 
 3. **Feed Forward Network** (0.056s in FeedForward.__call__, ~6% of time):
    - The feed-forward network is another bottleneck
    - This includes the SiLU activation function and matrix multiplications
+   - From the profiling output: `240 0.056 0.000 0.069 0.000 llama3.py:122(__call__)`
 
 4. **Rotary Position Encoding** (Complex implementation, high instruction count):
-   - The `apply_rotary_emb` function has 156 bytecode instructions, the most complex function
+   - The `apply_rotary_emb` function has 156 bytecode instructions, the most complex function in the codebase
    - Uses multiple reshape, split, and stack operations that could be inefficient
+   - From bytecode analysis: `apply_rotary_emb: 156 instructions`
 
 5. **Tokenization** (0.049s, ~5% of time):
    - String operations in tokenizer.str_lookup using list.index (which is O(n))
    - This suggests the tokenizer could be optimized with a different data structure
+   - From the profiling output: `602 0.048 0.000 0.048 0.000 {method 'index' of 'list' objects}`
+
+**Raw Function Profile (from cProfile):**
+```
+41    0.001    0.000    0.681    0.017 llama3.py:253(generate)
+40    0.457    0.011    0.680    0.017 llama3.py:228(__call__)
+240   0.001    0.000    0.222    0.001 llama3.py:192(__call__)
+240   0.143    0.001    0.145    0.001 llama3.py:84(__call__)
+240   0.056    0.000    0.069    0.000 llama3.py:122(__call__)
+602   0.048    0.000    0.048    0.000 {method 'index' of 'list' objects}
+```
 
 #### Bytecode Analysis Insights
 - `apply_rotary_emb` has by far the most complex bytecode (156 instructions)
 - Heavy use of `LOAD_FAST` and `LOAD_ATTR` suggests lots of attribute access
 - Many `CALL_FUNCTION_KW` operations indicate keyword argument overhead
+
+**Raw Bytecode Analysis Results:**
+```
+Function Complexity (by instruction count):
+  apply_rotary_emb: 156 instructions
+  Llama.__call__: 105 instructions
+  Llama.__init__: 69 instructions
+  Llama.generate: 56 instructions
+  softmax: 23 instructions
+  repeat_kv: 16 instructions
+  silu: 12 instructions
+
+Most Common Instructions:
+  LOAD_FAST: 112
+  LOAD_CONST: 69
+  STORE_FAST: 48
+  LOAD_ATTR: 30
+  LOAD_GLOBAL: 24
+```
 
 ### Optimization Hypotheses
 
@@ -140,10 +190,44 @@ We implemented an optimized version of the Rotary Position Encoding (RoPE) funct
 - Eliminated need for `squeeze` operations
 - Used `zeros_like` + direct assignment instead of `stack` + `reshape`
 
+**Key Code Changes:**
+```python
+# Original implementation (simplified)
+xqri = xq.reshape(xq.shape[:-1] + (-1, 2))
+xq_r, xq_i = np.split(xqri, 2, axis=-1)
+xq_r = xq_r.squeeze(-1)
+xq_i = xq_i.squeeze(-1)
+# ... apply rotation ...
+xq_out = np.stack([xq_out_r, xq_out_i], axis=-1)
+xq_out = xq_out.reshape(xq_out.shape[:-2] + (-1,))
+
+# Optimized implementation
+xq_r, xq_i = xq[..., ::2], xq[..., 1::2]
+# ... apply rotation ...
+xq_out = np.zeros_like(xq)
+xq_out[..., ::2] = xq_out_r
+xq_out[..., 1::2] = xq_out_i
+```
+
 **Results:**
 - Small batch (batch=1, seq_len=256): 1.51x speedup (0.435ms → 0.289ms)
 - Large batch (batch=32, seq_len=256): 1.20x speedup (14.711ms → 12.233ms)
 - Output matches the original implementation with high precision
+
+**Raw Benchmark Output:**
+```
+RoPE Benchmark Results (batch=1, seq_len=256, n_heads=6, head_dim=48):
+Original implementation: 0.435 ms
+Optimized implementation: 0.289 ms
+Speedup: 1.51x
+Output matches: Yes
+
+RoPE Benchmark Results (batch=32, seq_len=256, n_heads=6, head_dim=48):
+Original implementation: 14.711 ms
+Optimized implementation: 12.233 ms
+Speedup: 1.20x
+Output matches: Yes
+```
 
 **Insights:**
 1. The direct indexing approach is significantly simpler (fewer operations) and faster
@@ -164,11 +248,48 @@ We created simplified versions of key functions (softmax, silu, RoPE) with type 
 - Used our optimized RoPE implementation from Experiment 1
 - Kept the algorithms identical except for type annotations
 
+**Key Code Changes:**
+```python
+# Original implementation (with type annotations)
+def softmax(x):
+    exp_x: Array["*batch, vocabsize"] = np.exp(x - np.max(x, axis=-1, keepdims=True))
+    return exp_x / np.sum(exp_x, axis=-1, keepdims=True)
+
+# Simplified implementation (without type annotations)
+def simplified_softmax(x):
+    exp_x = np.exp(x - np.max(x, axis=-1, keepdims=True))
+    return exp_x / np.sum(exp_x, axis=-1, keepdims=True)
+```
+
 **Results:**
 - softmax: No significant difference (1.00x speedup)
 - silu: No significant difference (0.99x speedup)
 - RoPE: 1.21x speedup (consistent with our previous optimization)
 - Overall: 1.04x speedup across all functions
+
+**Raw Benchmark Output:**
+```
+Benchmarking softmax...
+  Original: 27.185ms
+  Simplified: 27.314ms
+  Speedup: 1.00x
+  Output matches: Yes
+
+Benchmarking silu...
+  Original: 13.642ms
+  Simplified: 13.725ms
+  Speedup: 0.99x
+  Output matches: Yes
+
+Benchmarking RoPE...
+  Original: 14.736ms
+  Simplified: 12.145ms
+  Speedup: 1.21x
+  Output matches: Yes
+
+Summary of Type Annotation Overhead:
+  Overall speedup: 1.04x
+```
 
 **Insights:**
 1. Type annotations by themselves have negligible runtime impact in NumPy operations
@@ -189,20 +310,117 @@ We created an optimized version of the tokenizer that replaces the list.index() 
 - Used the dictionary for lookups in the str_lookup method
 - Handled duplicates in the vocabulary by keeping only the first occurrence (matching the original behavior)
 
+**Key Code Changes:**
+```python
+# Original implementation
+def str_lookup(self, token: str) -> int:
+    try:
+        index = self.vocab.index(token)  # O(n) operation
+        return index
+    except ValueError as err:
+        return -1
+
+# Optimized implementation
+def __init__(self, tokenizer_path):
+    # ...
+    # Create a dictionary mapping from tokens to their first occurrence index
+    self.token_to_id = {}
+    for i, token in enumerate(self.vocab):
+        # Only add if not already in the dictionary (keep first occurrence)
+        if token not in self.token_to_id:
+            self.token_to_id[token] = i
+
+def str_lookup(self, s):
+    """Optimized token lookup using a dictionary instead of list.index()"""
+    return self.token_to_id.get(s, -1)  # O(1) operation
+```
+
 **Results:**
 - Short text "Hello world": 264x speedup (3.5ms → 0.013ms)
 - Medium text (94 chars): 519x speedup (377ms → 0.7ms)
 - Decode performance: No significant change (decoding was already fast)
 
+**Raw Benchmark Output:**
+```
+Tokenizer Benchmark Results (text length: 11):
+Original encode: 3.546 ms
+Optimized encode: 0.013 ms
+Encode speedup: 264.35x
+Output matches: Yes
+
+Tokenizer Benchmark Results (text length: 94):
+Original encode: 377.597 ms
+Optimized encode: 0.727 ms
+Encode speedup: 519.49x
+Output matches: Yes
+```
+
 **Analysis:**
 1. The original tokenizer's use of list.index() was extremely inefficient, especially with a 32,000-token vocabulary
-2. Most of the tokenization time was spent in the lookup function
+2. Most of the tokenization time was spent in the lookup function (O(n) for each character)
 3. A key insight was discovering that the vocabulary contains duplicate tokens (~200 duplicates)
 4. The dictionary-based approach needed to be carefully implemented to match the original's behavior of finding the first occurrence of a token
 
 **Implementation Challenges:**
 1. The vocabulary contains duplicate tokens, which required special handling
 2. We had to ensure we stored the first occurrence of each token in our dictionary, not the last
+3. We discovered this issue through debugging when tokens didn't match between implementations
+
+**Duplicate Token Analysis:**
+```
+Original vocab size: 32000
+Optimized token_to_id size: 31796
+Original vocab has 32000 entries, but only 31796 unique tokens
+
+# Sample duplicates
+'a' appears at indices: [100, 29874]
+' ' appears at indices: [35, 29871]
+'.' appears at indices: [49, 29889]
+```
 
 **Conclusion:**
-The tokenizer optimization provides a massive speedup for the encoding phase, potentially reducing overall model latency. This optimization is among the most impactful we've found so far, with minimal risk of introducing bugs.
+The tokenizer optimization provides a massive speedup for the encoding phase, potentially reducing overall model latency by 5-10% depending on prompt length. This optimization is among the most impactful we've found so far, with minimal risk of introducing bugs.
+
+**Next Steps:**
+1. Implement this optimization in the main tokenizer
+2. Investigate if other tokenizer operations (like merging) could be optimized
+3. Consider adding a cache for frequently tokenized substrings
+
+## Overall Day 1 Summary
+
+Today, we conducted a systematic analysis of llama3.np, focusing on identifying performance bottlenecks and testing optimization hypotheses. Three key experiments were performed:
+
+### Key Findings
+
+1. **Performance Baseline**
+   - Inference Speed: ~58-64 tokens/second
+   - Model Memory: ~108 MB
+   - Key bottlenecks identified: Llama.__call__ (48%), Attention (15%), FFN (6%), Tokenization (5%)
+
+2. **Optimization Results**
+   - **Tokenizer**: 264-519x speedup by replacing list.index() with dictionary lookup
+   - **RoPE**: 1.2-1.5x speedup using direct indexing instead of reshape/split/stack
+   - **Type Annotations**: Negligible impact on performance (~1.04x overhead)
+
+3. **Insights**
+   - Algorithmic optimizations (changing data structures, simplifying operations) yielded the biggest gains
+   - Some complexity in the original code (like the RoPE implementation) offers opportunities for simplification
+   - Python's type annotations have negligible runtime impact
+   - The tokenizer's vocabulary contains duplicate tokens that required special handling
+
+### Next Steps for Day 2
+
+1. **Implement Most Promising Optimizations**
+   - Integrate the optimized tokenizer into the main codebase
+   - Apply the RoPE optimization to the model
+   - Measure end-to-end impact on inference speed
+
+2. **Explore Additional Optimizations**
+   - Investigate matrix multiplication improvements (focus on Attention and FFN)
+   - Consider batched inference optimizations
+   - Explore memory access patterns to improve cache efficiency
+
+3. **Performance Testing Framework**
+   - Create a more comprehensive benchmark suite
+   - Compare against baseline and accurately measure improvements
+   - Verify correctness of generated text with optimizations
