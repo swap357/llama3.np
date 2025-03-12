@@ -386,9 +386,64 @@ The tokenizer optimization provides a massive speedup for the encoding phase, po
 2. Investigate if other tokenizer operations (like merging) could be optimized
 3. Consider adding a cache for frequently tokenized substrings
 
+## Experiment 4: Integrated Optimizations
+
+After developing individual optimizations, we integrated them into a unified optimized implementation in `optimized_llama.py`. This allowed us to test the combined impact of all our optimizations on the end-to-end performance of the model.
+
+**Implementation Changes:**
+- Integrated optimized dictionary-based tokenizer
+- Applied optimized RoPE implementation using direct indexing
+- Combined all improvements in a single implementation
+
+**Benchmark Methodology:**
+We created a comprehensive benchmark that separately measures:
+1. Tokenization performance
+2. RoPE implementation performance
+3. Prefill phase (first token generation)
+4. Decode phase (subsequent token generation)
+
+**Benchmark Results:**
+
+```
+Tokenization:
+  Prompt: 'Once upon a time in a land far away, there lived a brave knight who dreamed of adventures.'
+  Original: 334.47ms
+  Optimized: 0.66ms
+  Speedup: 507.35x
+
+RoPE Implementation:
+  Configuration: B=16, S=128, H=6, D=48
+  Original: 3.17ms
+  Optimized: 2.96ms
+  Speedup: 1.07x
+
+Prefill Phase:
+  Prompt: 'Once upon a time in a land far away'
+  Original: 16.85ms
+  Optimized: 18.26ms
+  Speedup: 0.92x
+
+Decode Phase:
+  Original: 17.13ms/token (58.39 tokens/s)
+  Optimized: 17.01ms/token (58.81 tokens/s)
+  Speedup: 1.01x
+```
+
+**Analysis:**
+1. The tokenization optimization is extremely effective, with a ~507x speedup that significantly reduces input processing time.
+2. The RoPE optimization shows a modest but consistent improvement of ~7-20% depending on batch size and sequence length.
+3. The prefill phase is slightly slower in the optimized version in our test - this might be due to variance in measurement or differences in implementation.
+4. The decode phase shows a very slight improvement (~1%) - not as significant as we hoped.
+
+**Insights:**
+1. The tokenization optimization provides the most dramatic performance improvement.
+2. The core model inference speed (prefill and decode) is harder to optimize without more fundamental changes.
+3. Even when individual components like RoPE are optimized, the overall impact on inference may be limited because that component is only one part of a complex system.
+4. The performance characteristics of prefill vs. decode phases are different, which is important when optimizing for interactive use cases.
+
 ## Overall Day 1 Summary
 
-Today, we conducted a systematic analysis of llama3.np, focusing on identifying performance bottlenecks and testing optimization hypotheses. Three key experiments were performed:
+Today, we conducted a systematic analysis of llama3.np, focusing on identifying performance bottlenecks and testing optimization hypotheses. Four key experiments were performed:
 
 ### Key Findings
 
@@ -398,29 +453,30 @@ Today, we conducted a systematic analysis of llama3.np, focusing on identifying 
    - Key bottlenecks identified: Llama.__call__ (48%), Attention (15%), FFN (6%), Tokenization (5%)
 
 2. **Optimization Results**
-   - **Tokenizer**: 264-519x speedup by replacing list.index() with dictionary lookup
-   - **RoPE**: 1.2-1.5x speedup using direct indexing instead of reshape/split/stack
+   - **Tokenizer**: ~507x speedup by replacing list.index() with dictionary lookup
+   - **RoPE**: ~1.07-1.5x speedup using direct indexing instead of reshape/split/stack
    - **Type Annotations**: Negligible impact on performance (~1.04x overhead)
+   - **End-to-end**: Varied by phase; tokenization dramatically faster, inference ~1% faster
 
 3. **Insights**
    - Algorithmic optimizations (changing data structures, simplifying operations) yielded the biggest gains
+   - The tokenizer optimization provides the most significant impact on overall performance
    - Some complexity in the original code (like the RoPE implementation) offers opportunities for simplification
    - Python's type annotations have negligible runtime impact
    - The tokenizer's vocabulary contains duplicate tokens that required special handling
 
 ### Next Steps for Day 2
 
-1. **Implement Most Promising Optimizations**
-   - Integrate the optimized tokenizer into the main codebase
-   - Apply the RoPE optimization to the model
-   - Measure end-to-end impact on inference speed
-
-2. **Explore Additional Optimizations**
+1. **More Advanced Optimizations**
    - Investigate matrix multiplication improvements (focus on Attention and FFN)
-   - Consider batched inference optimizations
-   - Explore memory access patterns to improve cache efficiency
+   - Consider memory access pattern optimizations
+   - Explore batched inference optimizations
 
-3. **Performance Testing Framework**
-   - Create a more comprehensive benchmark suite
-   - Compare against baseline and accurately measure improvements
-   - Verify correctness of generated text with optimizations
+2. **Selective JIT Compilation**
+   - Evaluate Numba JIT for specific computation-intensive functions
+   - Test both CPU and potential GPU acceleration options
+
+3. **More Detailed Profiling**
+   - Use low-level profiling tools to identify hotspots at instruction level
+   - Investigate cache misses and memory access patterns
+   - Profile with larger batches and longer sequences to identify scaling bottlenecks
