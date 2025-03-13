@@ -17,10 +17,10 @@ import subprocess
 from typing import List, Dict, Any, Tuple
 
 # Import both implementations
-import llama3
-from optimized_llama import Llama as OptimizedLlama
-from optimized_llama import OptimizedTokenizer
-from config import ModelArgs
+from deprecated import llama3
+from deprecated.optimized_llama import Llama as OptimizedLlama
+from deprecated.optimized_llama import OptimizedTokenizer
+from deprecated.config import ModelArgs
 
 def measure_memory_usage():
     """Measure current process memory usage in MB."""
