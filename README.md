@@ -4,18 +4,6 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 
-```
-                _____
-               / .  .\  _____                   
-        ,_    /   .   \|     \   _     ,_     _____              
-       /  \  (    .    |  ^_^ | / \   /  \   |__  /  _ __   _ __  
-      |    \  \  ...  /| / \ |/   \ /    \ /   / /  | '_ \ | '_ \ 
-      |  (\ \  \_____/ |/   \|  |\ Y /|  Y   / /_  | | | || |_) |
-      |  | \ \____|___/|\___/|__| | | |__|  /____|_|_| |_|| .__/ 
-      |  |  \______|___/     \____/ \____/               |_|    
-      |  |                                            
-       \/ NumPy Implementation w/ Optimizations
-```
 
 A simplified NumPy implementation of the Llama3 language model with performance optimizations. This project provides both original and optimized implementations for learning, experimentation, and performance comparison.
 
