@@ -1,3 +1,9 @@
+"""
+Base implementation of Llama3 model using NumPy.
+
+This is the original implementation without optimizations.
+"""
+
 from __future__ import annotations
 
 import math
@@ -7,9 +13,9 @@ from typing import TypeVar, Generic, Optional
 
 import numpy as np
 
-from config import ModelArgs
-from tokenizer import Tokenizer
-from utils import load_parameters
+from ..utils.config import ModelArgs
+from ..utils.tokenizer import Tokenizer
+from ..utils.loader import load_parameters
 
 Shape = TypeVar("Shape")
 
@@ -30,7 +36,6 @@ def compute_cos_sin_cache(head_dim: int, max_seq_len: int, base: int = 10000):
     inv_freq: Array["HD//2"] = 1.0 / (base ** (np.arange(0, head_dim, 2)[: (head_dim // 2)] / head_dim))
     t: Array["M"] = np.arange(max_seq_len)
     freqs: Array["M, HD//2"] = np.outer(t, inv_freq)
-
     return np.cos(freqs), np.sin(freqs)
 
 
@@ -64,7 +69,7 @@ def apply_rotary_emb(xq: Array["B, L or 1, QHN,  HD"], xk: Array["B, L or 1, KVH
     xk_out: Array["B, L or 1, KVHN, HD//2, 2"] = np.stack([xk_out_r, xk_out_i], axis=-1)
     xq_out: Array["B, L or 1, QHN,  HD"] = xq_out.reshape(xq_out.shape[:-2] + (-1,))
     xk_out: Array["B, L or 1, KVHN, HD"] = xk_out.reshape(xk_out.shape[:-2] + (-1,))
-
+    
     return xq_out, xk_out
 
 
@@ -132,7 +137,7 @@ class Attention:
         xk: Array["B, L or 1, KVHN, HD"] = xk.reshape(B, L, self.n_local_kv_heads, self.head_dim)
         xv: Array["B, L or 1, KVHN, HD"] = xv.reshape(B, L, self.n_local_kv_heads, self.head_dim)
 
-        # RoPE #2
+        # RoPE
         xq, xk = apply_rotary_emb(xq, xk, freqs_cos, freqs_sin)
 
         # KV Cache
@@ -153,7 +158,6 @@ class Attention:
         # Scaled Dot-Product Attention
         # ["B, HN, L or 1, HD"] @ ["B, HN, HD, L"] -> ["B, HN, L or 1, L"]
         attention: Array["B, HN, L or 1, L"] = xq @ xk.transpose(0, 1, 3, 2) / math.sqrt(self.head_dim)
-        # `mask` is used only once at the beginning.
         if mask is not None:
             attention = attention + mask[None, None, :, :]
         attention = softmax(attention)
@@ -213,7 +217,7 @@ class Llama:
         weight = load_parameters(model_path)
         self.tok_embedding: Array["VS, D"] = weight.get("model.embed_tokens.weight")
 
-        # RoPE #1
+        # RoPE
         self.freqs_cos, self.freqs_sin = compute_cos_sin_cache(args.dim // args.n_heads, args.max_seq_len)
 
         self.layers = []
@@ -262,29 +266,3 @@ class Llama:
             logits: Array["B, 1, VS"] = self(inputs, pos)
             next_id = logits[:, -1, :].argmax(-1, keepdims=True)
             yield next_id
-
-
-if __name__ == '__main__':
-    args = ModelArgs()
-
-    tokenizer = Tokenizer("./tokenizer.model.np")
-    model = Llama("./stories15M.model.npz", args)
-
-    if len(sys.argv) == 1:
-        prompt = "I have a dream"
-    else:
-        prompt = sys.argv[1]
-
-    print(f"\n{prompt}", end="")
-    input_ids = np.array([tokenizer.encode(prompt)])
-    start = time.time()
-    _, L = input_ids.shape
-    for id in model.generate(input_ids, args.max_new_tokens):
-        L += 1
-        output_id = id[0].tolist()
-        if output_id[-1] in [tokenizer.eos_id, tokenizer.bos_id]:
-            break
-        print(tokenizer.decode(output_id), end="")
-        sys.stdout.flush()
-    elapsed = time.time() - start
-    print(f"\n\nToken count: {L}, elapsed: {elapsed:.2f}s, {round(L / elapsed)} tokens/s")

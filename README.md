@@ -1,53 +1,156 @@
-# llama3.np
+# llama3.np: NumPy Implementation of Llama3
 
-<p align="center">
-  <img src="/assets/llama3.np.webp" width="300" alt="llama3.cuda">
-</p>
+[![Tests](https://github.com/swap357/llama3.np/actions/workflows/test_and_benchmark.yml/badge.svg)](https://github.com/swap357/llama3.np/actions/workflows/test_and_benchmark.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 
-`llama3.np` is a pure NumPy implementation for Llama 3 model. For an accurate implementation, I ran the [stories15M model](https://github.com/karpathy/llama2.c?tab=readme-ov-file#models) trained by Andrej Karpathy. 
 
-- For a detailed explanation in English, see [Llama 3 implemented in pure NumPy](https://docs.likejazz.com/llama3.np/).
-- If you're interested in CUDA implementation, see [Llama 3 implemented in pure C/CUDA](https://github.com/likejazz/llama3.cuda).
+A simplified NumPy implementation of the Llama3 language model with performance optimizations. This project provides both original and optimized implementations for learning, experimentation, and performance comparison.
 
-## Usage
+## 🚀 Performance Improvements
 
-```shell
-$ python llama3.py "I have a dream"
-"""
-I have a dream. He dream of a big, beautiful garden full of flower and tree. He dream of playing with hi friend and eating yummy snack.
-One day, he wa walking in the garden when he saw
+| Component | Speedup | Notes |
+|-----------|---------|-------|
+| Tokenizer | **~507x** | Dictionary-based lookup instead of list.index() |
+| RoPE      | **~1.07-1.5x** | Direct indexing instead of reshape/split/stack |
+| Inference | **~1.01x** | End-to-end token generation speedup |
 
-Token count: 50, elapsed: 1.53s, 33 tokens/s
-"""
+## 📋 Requirements
+
+- Python 3.8+
+- NumPy
+
+## 🔧 Installation
+
+```bash
+git clone https://github.com/swap357/llama3.np.git
+cd llama3.np
+pip install -e .
 ```
 
-## Citing llama3.np
+## 🏃‍♂️ Quick Start
 
-If you use or discuss `llama3.np` in your academic research, please cite the project to help spread awareness:
+Run the model with default settings:
 
-```
-@misc{llama3.np,
-  title = {llama3.np: pure NumPy implementation for Llama 3 model},
-  author = {Sang Park}, 
-  howpublished = {\url{https://github.com/likejazz/llama3.np}},
-  note = {llama3.np, MIT License}
-  year = {2024},
-}
+```bash
+python scripts/run_llama.py --prompt "Once upon a time"
 ```
 
-# References
+Use the optimized implementation:
+
+```bash
+python scripts/run_llama.py --prompt "Once upon a time" --optimized
+```
+
+Compare performance between versions:
+
+```bash
+python scripts/run_llama.py --prompt "Once upon a time" --compare
+```
+
+## 🔍 Benchmarking
+
+Run comprehensive benchmarks:
+
+```bash
+python scripts/run_benchmarks.py --all
+```
+
+Or test specific components:
+
+```bash
+python scripts/run_benchmarks.py --tokenization --rope
+python scripts/run_benchmarks.py --inference --max-tokens 50
+```
+
+Run direct component comparisons:
+
+```bash
+python -m llama3np.benchmark.direct --prompt "Once upon a time" --iterations 50
+```
+
+Run complete model comparison:
+
+```bash
+python -m llama3np.benchmark.llama --prompt "Once upon a time" --tokens 30
+```
+
+## 🔬 Analysis Tools
+
+Analyze model bytecode:
+
+```bash
+python analysis/bytecode/analyze_bytecode.py --funcs "apply_rotary_emb,softmax"
+```
+
+Run comprehensive profiling:
+
+```bash
+python scripts/run_analysis.py --prompt "Once upon a time" --tokens 20
+```
+
+Profile specific inference phases:
+
+```bash
+python analysis/profiling/profile_inference.py --prompt "Hello" --max-tokens 10 --phases prefill
+```
+
+## 📊 Key Findings
+
+Our performance analysis uncovered several optimization opportunities:
+
+1. **Tokenizer Optimization**: 
+   - Original implementation used list.index() for lookups (O(n))
+   - Optimized implementation uses dictionary lookup (O(1))
+   - Result: Massive 507x speedup
+
+2. **RoPE Implementation**:
+   - Original implementation used complex reshape/split/stack operations
+   - Optimized implementation uses direct indexing
+   - Result: 7-50% speedup depending on batch size and sequence length
+
+3. **End-to-End Performance**:
+   - Tokenization is dramatically faster
+   - Core inference speed shows modest 1% improvement
+   - Clear separation of prefill vs. decode phases reveals different optimization needs
+
+## 📂 Project Structure
+
+```
+llama3.np/
+├── llama3np/                # Main package
+│   ├── model/               # Model implementations
+│   │   ├── base.py          # Original implementation
+│   │   └── optimized.py     # Optimized implementation
+│   ├── utils/               # Utilities
+│   │   ├── config.py        # Model configuration
+│   │   ├── loader.py        # Weight loading utilities
+│   │   ├── tokenizer.py     # Original tokenizer
+│   │   └── optimized_tokenizer.py # Optimized tokenizer
+│   └── benchmark/           # Benchmarking tools
+│       ├── components.py    # Component-level benchmarks
+│       ├── end_to_end.py    # End-to-end benchmarks
+│       ├── direct.py        # Direct component comparison
+│       └── llama.py         # Full model comparison
+├── scripts/                 # High-level scripts
+│   ├── run_llama.py         # CLI for text generation
+│   ├── run_benchmarks.py    # Benchmarking orchestration
+│   └── run_analysis.py      # Analysis orchestration
+├── analysis/                # Analysis tools
+│   ├── bytecode/            # Bytecode analysis
+│   ├── profiling/           # Performance profiling
+│   └── types/               # Type annotation analysis
+├── tests/                   # Test suite
+└── setup.py                 # Package installation
+```
+
+## References
+
 Thank you to the creators of the following libraries and tools and their contributors:
 - [llama2.c](https://github.com/karpathy/llama2.c) - @karpathy
 - [llama.np](https://github.com/hscspring/llama.np) - @hscspring
 - [modeling_llama.py](https://github.com/huggingface/transformers/blob/main/src/transformers/models/llama/modeling_llama.py) - Hugging Face's Transformers
 
-I got a lot of information from the articles below:
-- [42dot LLM 1.3B](https://42dot.ai/blog/178) - 42dot
-- [Exploring and building the LLaMA 3 Architecture : A Deep Dive into Components, Coding, and Inference Techniques](https://medium.com/@vi.ai_/exploring-and-building-the-llama-3-architecture-a-deep-dive-into-components-coding-and-43d4097cfbbb) - @vi.ai_
-- [Rotary Embeddings: A Relative Revolution](https://blog.eleuther.ai/rotary-embeddings/) - EleutherAI
-- [Mastering LLM Techniques: Inference Optimization](https://developer.nvidia.com/blog/mastering-llm-techniques-inference-optimization/) - NVIDIA
+## License
 
-And title image was generated by DALL-E
-
-# License
-MIT
+MIT License
