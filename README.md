@@ -4,9 +4,18 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 
-<p align="center">
-  <img src="/assets/llama3.np.webp" width="300" alt="llama3.np">
-</p>
+```
+                _____
+               / .  .\  _____                   
+        ,_    /   .   \|     \   _     ,_     _____              
+       /  \  (    .    |  ^_^ | / \   /  \   |__  /  _ __   _ __  
+      |    \  \  ...  /| / \ |/   \ /    \ /   / /  | '_ \ | '_ \ 
+      |  (\ \  \_____/ |/   \|  |\ Y /|  Y   / /_  | | | || |_) |
+      |  | \ \____|___/|\___/|__| | | |__|  /____|_|_| |_|| .__/ 
+      |  |  \______|___/     \____/ \____/               |_|    
+      |  |                                            
+       \/ NumPy Implementation w/ Optimizations
+```
 
 A simplified NumPy implementation of the Llama3 language model with performance optimizations. This project provides both original and optimized implementations for learning, experimentation, and performance comparison.
 
@@ -36,13 +45,19 @@ pip install -e .
 Run the model with default settings:
 
 ```bash
-python run_llama.py --prompt "Once upon a time"
+python scripts/run_llama.py --prompt "Once upon a time"
 ```
 
 Use the optimized implementation:
 
 ```bash
-python run_llama.py --prompt "Once upon a time" --optimized
+python scripts/run_llama.py --prompt "Once upon a time" --optimized
+```
+
+Compare performance between versions:
+
+```bash
+python scripts/run_llama.py --prompt "Once upon a time" --compare
 ```
 
 ## 🔍 Benchmarking
@@ -50,14 +65,46 @@ python run_llama.py --prompt "Once upon a time" --optimized
 Run comprehensive benchmarks:
 
 ```bash
-python run_benchmarks.py --all
+python scripts/run_benchmarks.py --all
 ```
 
 Or test specific components:
 
 ```bash
-python run_benchmarks.py --tokenization --rope
-python run_benchmarks.py --inference --max-tokens 50
+python scripts/run_benchmarks.py --tokenization --rope
+python scripts/run_benchmarks.py --inference --max-tokens 50
+```
+
+Run direct component comparisons:
+
+```bash
+python -m llama3np.benchmark.direct --prompt "Once upon a time" --iterations 50
+```
+
+Run complete model comparison:
+
+```bash
+python -m llama3np.benchmark.llama --prompt "Once upon a time" --tokens 30
+```
+
+## 🔬 Analysis Tools
+
+Analyze model bytecode:
+
+```bash
+python analysis/bytecode/analyze_bytecode.py --funcs "apply_rotary_emb,softmax"
+```
+
+Run comprehensive profiling:
+
+```bash
+python scripts/run_analysis.py --prompt "Once upon a time" --tokens 20
+```
+
+Profile specific inference phases:
+
+```bash
+python analysis/profiling/profile_inference.py --prompt "Hello" --max-tokens 10 --phases prefill
 ```
 
 ## 📊 Key Findings
@@ -93,9 +140,19 @@ llama3.np/
 │   │   ├── tokenizer.py     # Original tokenizer
 │   │   └── optimized_tokenizer.py # Optimized tokenizer
 │   └── benchmark/           # Benchmarking tools
+│       ├── components.py    # Component-level benchmarks
+│       ├── end_to_end.py    # End-to-end benchmarks
+│       ├── direct.py        # Direct component comparison
+│       └── llama.py         # Full model comparison
+├── scripts/                 # High-level scripts
+│   ├── run_llama.py         # CLI for text generation
+│   ├── run_benchmarks.py    # Benchmarking orchestration
+│   └── run_analysis.py      # Analysis orchestration
+├── analysis/                # Analysis tools
+│   ├── bytecode/            # Bytecode analysis
+│   ├── profiling/           # Performance profiling
+│   └── types/               # Type annotation analysis
 ├── tests/                   # Test suite
-├── run_llama.py             # CLI for text generation
-├── run_benchmarks.py        # Benchmarking script
 └── setup.py                 # Package installation
 ```
 
