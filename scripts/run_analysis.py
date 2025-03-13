@@ -60,7 +60,7 @@ def main():
     
     # 1. First, let's run a basic inference to establish baseline performance
     success, output = run_command(
-        f"python3 llama3.py '{args.prompt}' --max-new-tokens {args.tokens}",
+        f"python3 scripts/run_llama.py '{args.prompt}' --max-new-tokens {args.tokens}",
         "Baseline Inference"
     )
     if success and output is not None:
@@ -69,7 +69,7 @@ def main():
     
     # 2. Run bytecode analysis
     success, output = run_command(
-        f"python3 analyze_bytecode.py --output {os.path.join(run_dir, 'bytecode_analysis.json')}",
+        f"python3 analysis/bytecode/analyze_bytecode.py --output {os.path.join(run_dir, 'bytecode_analysis.json')}",
         "Bytecode Analysis"
     )
     if success and output is not None:
@@ -78,7 +78,7 @@ def main():
     
     # 3. Run detailed profiling
     success, output = run_command(
-        f"python3 profile_inference.py --prompt '{args.prompt}' --max-tokens {args.tokens} --output {os.path.join(run_dir, 'profile_results.json')}",
+        f"python3 analysis/profiling/profile_inference.py --prompt '{args.prompt}' --max-tokens {args.tokens} --output {os.path.join(run_dir, 'profile_results.json')}",
         "Detailed Profiling"
     )
     if success and output is not None:
@@ -87,7 +87,7 @@ def main():
     
     # 4. Run with Python's built-in profiler for comparison
     success, output = run_command(
-        f"python3 -m cProfile -o {os.path.join(run_dir, 'cprofile.prof')} llama3.py '{args.prompt}' --max-new-tokens {args.tokens}",
+        f"python3 -m cProfile -o {os.path.join(run_dir, 'cprofile.prof')} scripts/run_llama.py '{args.prompt}' --max-new-tokens {args.tokens}",
         "cProfile Run"
     )
     
