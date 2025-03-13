@@ -7,6 +7,7 @@ This is the original implementation without optimizations.
 from __future__ import annotations
 
 import math
+import sys
 import time
 from typing import TypeVar, Generic, Optional
 
@@ -14,6 +15,7 @@ import numpy as np
 
 from ..utils.config import ModelArgs
 from ..utils.tokenizer import Tokenizer
+from ..utils.loader import load_parameters
 
 Shape = TypeVar("Shape")
 
@@ -74,169 +76,148 @@ def apply_rotary_emb(xq: Array["B, L or 1, QHN,  HD"], xk: Array["B, L or 1, KVH
 def repeat_kv(x: Array["B, L, KVHN, HD"], n_rep: int):
     if n_rep == 1:
         return x
-    else:
-        return np.repeat(x, n_rep, axis=2)
+    z: Array["B, L, QHN, HD"] = np.repeat(x, n_rep, axis=2)
+    return z
+
+
+class FeedForward:
+    def __init__(self, up_weight: Array["FD, D"], gate_weight: Array["FD, D"], down_weight: Array["D, FD"]):
+        self.up_weight = up_weight.T
+        self.gate_weight = gate_weight.T
+        self.down_weight = down_weight.T
+
+    def __call__(self, x: Array["B, L or 1, D"]):
+        # FD = 2 * 4 * D / 3
+        swish: Array["B, L or 1, FD"] = silu(x @ self.gate_weight)
+        x_V: Array["B, L or 1, FD"] = x @ self.up_weight
+        x: Array["B, L or 1, FD"] = swish * x_V
+        x: Array["B, L or 1, D"] = x @ self.down_weight
+        return x
 
 
 class RMSNorm:
-    def __init__(self, weight: Array["D"], eps: float = 1e-6):
+    def __init__(self, weight: Array["H"], eps: float):
         self.weight = weight
         self.eps = eps
 
-    def __call__(self, x: Array["B, L, D"]) -> Array["B, L, D"]:
-        # (B, L, D) -> (B, L, 1)
-        variance: Array["B, L, 1"] = np.mean(x * x, axis=-1, keepdims=True)
-        x = x / np.sqrt(variance + self.eps)
-        return self.weight * x
+    def __call__(self, x: Array["B, L or 1, D"]):
+        z: Array["B, L or 1, 1"] = (x ** 2).mean(-1, keepdims=True) + self.eps
+        z: Array["B, L or 1, D"] = x / np.sqrt(z)
+        return z * self.weight
 
 
 class Attention:
-    def __init__(
-            self,
-            wq: Array["D, QHD"],
-            wk: Array["D, KVHD"],
-            wv: Array["D, KVHD"],
-            wo: Array["QHD, D"],
-            n_heads: int,
-            n_kv_heads: int,
-            max_seq_len: int,
-            max_batch_size: int,
-    ):
-        self.wq = wq
-        self.wk = wk
-        self.wv = wv
-        self.wo = wo
-        self.n_heads = n_heads
-        self.n_kv_heads = n_kv_heads
-        self.head_dim = wq.shape[1] // n_heads
-        self.n_rep = n_heads // n_kv_heads if n_kv_heads > 0 else 0
-        self.cache_k = np.zeros((max_batch_size, max_seq_len, n_kv_heads, self.head_dim))
-        self.cache_v = np.zeros((max_batch_size, max_seq_len, n_kv_heads, self.head_dim))
+    def __init__(self, q_weight: Array["D, D"], k_weight: Array["D, D"], v_weight: Array["D, D"],
+                 o_weight: Array["D, D"], args: ModelArgs):
+        self.n_kv_heads = args.n_heads if args.n_kv_heads is None else args.n_kv_heads
+        assert args.n_heads % self.n_kv_heads == 0
+        self.n_local_heads = args.n_heads
+        self.n_local_kv_heads = self.n_kv_heads
+        self.n_rep = self.n_local_heads // self.n_local_kv_heads
+        self.head_dim = args.dim // args.n_heads
+
+        self.q_weight = q_weight.T
+        self.k_weight = k_weight.T
+        self.v_weight = v_weight.T
+        self.o_weight = o_weight.T
+
+        self.cache_k = np.zeros((args.max_batch_size, args.max_seq_len, self.n_local_kv_heads, self.head_dim))
+        self.cache_v = np.zeros((args.max_batch_size, args.max_seq_len, self.n_local_kv_heads, self.head_dim))
 
     def __call__(self, x: Array["B, L or 1, D"], start_pos: int, mask: Optional[Array["L, L"]],
                  freqs_cos: Array["L or 1, HD//2"], freqs_sin: Array["L or 1, HD//2"]):
         B, L, _ = x.shape
 
-        # compute query, key, values
-        xq: Array["B, L or 1, HD"] = x @ self.wq
-        xk: Array["B, L or 1, HD"] = x @ self.wk
-        xv: Array["B, L or 1, HD"] = x @ self.wv
+        # QKV
+        xq: Array["B, L or 1, D"] = x @ self.q_weight
+        xk: Array["B, L or 1, D"] = x @ self.k_weight
+        xv: Array["B, L or 1, D"] = x @ self.v_weight
 
-        # reshape for heads
-        xq: Array["B, L or 1, H, HD"] = xq.reshape(B, L, self.n_heads, self.head_dim)
-        xk: Array["B, L or 1, H, HD"] = xk.reshape(B, L, self.n_kv_heads, self.head_dim)
-        xv: Array["B, L or 1, H, HD"] = xv.reshape(B, L, self.n_kv_heads, self.head_dim)
+        xq: Array["B, L or 1, QHN,  HD"] = xq.reshape(B, L, self.n_local_heads, self.head_dim)
+        xk: Array["B, L or 1, KVHN, HD"] = xk.reshape(B, L, self.n_local_kv_heads, self.head_dim)
+        xv: Array["B, L or 1, KVHN, HD"] = xv.reshape(B, L, self.n_local_kv_heads, self.head_dim)
 
-        # apply rotary embeddings
+        # RoPE
         xq, xk = apply_rotary_emb(xq, xk, freqs_cos, freqs_sin)
 
-        # store kv cache
+        # KV Cache
         self.cache_k[:B, start_pos: start_pos + L] = xk
         self.cache_v[:B, start_pos: start_pos + L] = xv
-        keys: Array["B, L, H, HD"] = self.cache_k[:B, : start_pos + L]
-        values: Array["B, L, H, HD"] = self.cache_v[:B, : start_pos + L]
+        ks: Array["B, L, KVHN, HD"] = self.cache_k[:B, : start_pos + L]
+        vs: Array["B, L, KVHN, HD"] = self.cache_v[:B, : start_pos + L]
 
-        # expand for multi-query attention
-        keys = repeat_kv(keys, self.n_rep)
-        values = repeat_kv(values, self.n_rep)
+        # GQA
+        xk: Array["B, L, HN, HD"] = repeat_kv(ks, self.n_rep)
+        xv: Array["B, L, HN, HD"] = repeat_kv(vs, self.n_rep)
 
-        # transpose for attention calculation
-        xq: Array["B, H, L or 1, HD"] = xq.transpose(0, 2, 1, 3)
-        keys: Array["B, H, L, HD"] = keys.transpose(0, 2, 1, 3)
-        values: Array["B, H, L, HD"] = values.transpose(0, 2, 1, 3)
+        # ["B, L, HN, HD"] -> ["B, HN, L, HD"]
+        xq: Array["B, HN, L or 1, HD"] = xq.transpose(0, 2, 1, 3)
+        xk: Array["B, HN, L, HD"] = xk.transpose(0, 2, 1, 3)
+        xv: Array["B, HN, L, HD"] = xv.transpose(0, 2, 1, 3)
 
-        # compute attention scores
-        scores: Array["B, H, L or 1, L"] = xq @ keys.transpose(0, 1, 3, 2) / math.sqrt(self.head_dim)
+        # Scaled Dot-Product Attention
+        # ["B, HN, L or 1, HD"] @ ["B, HN, HD, L"] -> ["B, HN, L or 1, L"]
+        attention: Array["B, HN, L or 1, L"] = xq @ xk.transpose(0, 1, 3, 2) / math.sqrt(self.head_dim)
         if mask is not None:
-            scores = scores + mask[None, None, :, :]
-        scores = softmax(scores)
-        output: Array["B, H, L or 1, HD"] = scores @ values
+            attention = attention + mask[None, None, :, :]
+        attention = softmax(attention)
+        output: Array["B, HN, L or 1, HD"] = attention @ xv
 
-        # transpose back and reshape
-        output: Array["B, L or 1, H, HD"] = output.transpose(0, 2, 1, 3)
-        output: Array["B, L or 1, D"] = output.reshape(B, L, -1)
-        
-        # final projection
-        output: Array["B, L or 1, D"] = output @ self.wo
-        
-        return output
+        # ["B, HN, L or 1, HD"] -> ["B, L or 1, D"]
+        output: Array["B, L or 1, D"] = output.transpose(0, 2, 1, 3).reshape(B, L, -1)
+        output: Array["B, L or 1, D"] = output @ self.o_weight
 
-
-class FeedForward:
-    def __init__(self, w1: Array["D, FD"], w2: Array["FD, D"], w3: Array["D, FD"]):
-        self.w1 = w1
-        self.w2 = w2
-        self.w3 = w3
-
-    def __call__(self, x: Array["B, L or 1, D"]):
-        # Apply SwiGLU
-        swish: Array["B, L or 1, FD"] = silu(x @ self.w3)
-        x_proj: Array["B, L or 1, FD"] = x @ self.w1
-        x_gate: Array["B, L or 1, FD"] = swish * x_proj
-        
-        # Output projection
-        output: Array["B, L or 1, D"] = x_gate @ self.w2
         return output
 
 
 class TransformerBlock:
-    def __init__(
-            self,
-            weights: dict,
-            layer_id: int,
-            args: ModelArgs,
-    ):
+    def __init__(self, weight: dict, layer_id: int, args: ModelArgs):
         self.attention = Attention(
-            wq=weights.get(f"model.layers.{layer_id}.self_attn.q_proj.weight"),
-            wk=weights.get(f"model.layers.{layer_id}.self_attn.k_proj.weight"),
-            wv=weights.get(f"model.layers.{layer_id}.self_attn.v_proj.weight"),
-            wo=weights.get(f"model.layers.{layer_id}.self_attn.o_proj.weight"),
-            n_heads=args.n_heads,
-            n_kv_heads=args.n_kv_heads if args.n_kv_heads is not None else args.n_heads,
-            max_seq_len=args.max_seq_len,
-            max_batch_size=args.max_batch_size,
+            weight.get(f"model.layers.{layer_id}.self_attn.q_proj.weight"),
+            weight.get(f"model.layers.{layer_id}.self_attn.k_proj.weight"),
+            weight.get(f"model.layers.{layer_id}.self_attn.v_proj.weight"),
+            weight.get(f"model.layers.{layer_id}.self_attn.o_proj.weight"),
+            args
         )
-        
         self.feed_forward = FeedForward(
-            w1=weights.get(f"model.layers.{layer_id}.mlp.up_proj.weight"),
-            w2=weights.get(f"model.layers.{layer_id}.mlp.down_proj.weight"),
-            w3=weights.get(f"model.layers.{layer_id}.mlp.gate_proj.weight"),
+            weight.get(f"model.layers.{layer_id}.mlp.up_proj.weight"),
+            weight.get(f"model.layers.{layer_id}.mlp.gate_proj.weight"),
+            weight.get(f"model.layers.{layer_id}.mlp.down_proj.weight"),
         )
-        
-        self.attention_norm = RMSNorm(
-            weight=weights.get(f"model.layers.{layer_id}.input_layernorm.weight"),
-            eps=args.norm_eps,
+        self.input_layernorm = RMSNorm(
+            weight.get(f"model.layers.{layer_id}.input_layernorm.weight"),
+            eps=args.norm_eps
         )
-        
-        self.ffn_norm = RMSNorm(
-            weight=weights.get(f"model.layers.{layer_id}.post_attention_layernorm.weight"),
-            eps=args.norm_eps,
+        self.post_attention_layernorm = RMSNorm(
+            weight.get(f"model.layers.{layer_id}.post_attention_layernorm.weight"),
+            eps=args.norm_eps
         )
 
-    def __call__(self, x: Array["B, L, D"], start_pos: int, mask: Optional[Array["L, L"]],
-                 freqs_cos: Array["L, HD//2"], freqs_sin: Array["L, HD//2"]) -> Array["B, L, D"]:
-        # Self-attention with residual connection
-        h = self.attention_norm(x)
-        h = self.attention(h, start_pos, mask, freqs_cos, freqs_sin)
-        x = x + h
+    def __call__(self, x: Array["B, L or 1, D"], start_pos: int, mask: Array["L, L"],
+                 freqs_cos: Array["L or 1, HD//2"], freqs_sin: Array["L or 1, HD//2"]):
+        # RMSNorm
+        norm_x: Array["B, L or 1, D"] = self.input_layernorm(x)
+        # Masked Multi-Head Attention
+        h1: Array["B, L or 1, D"] = self.attention(norm_x, start_pos, mask, freqs_cos, freqs_sin)
+        z = x + h1
 
-        # Feed-forward with residual connection
-        h = self.ffn_norm(x)
-        h = self.feed_forward(h)
-        x = x + h
+        # RMSNorm
+        norm_z = self.post_attention_layernorm(z)
+        # Feed Forward + SwiGLU
+        h2: Array["B, L or 1, D"] = self.feed_forward(norm_z)
+        out = z + h2
 
-        return x
+        return out
 
 
 class Llama:
     def __init__(self, model_path: str, args: ModelArgs):
         self.args = args
 
-        from ..utils.loader import load_parameters
         weight = load_parameters(model_path)
         self.tok_embedding: Array["VS, D"] = weight.get("model.embed_tokens.weight")
 
-        # RoPE frequency cache
+        # RoPE
         self.freqs_cos, self.freqs_sin = compute_cos_sin_cache(args.dim // args.n_heads, args.max_seq_len)
 
         self.layers = []
@@ -245,6 +226,8 @@ class Llama:
 
         self.norm = RMSNorm(weight.get("model.norm.weight"), eps=args.norm_eps)
         self.lm_head_weight: Array["D, VS"] = weight.get("lm_head.weight").T
+
+        del weight
 
     def __call__(self, input_ids: Array["B, L"], start_pos: int):
         _, L = input_ids.shape
@@ -268,18 +251,18 @@ class Llama:
         h: Array["B, L or 1, D"] = self.norm(h)
         # Only forward the output from the last position.
         # ["B, 1, VS"] = ["B, 1(L), D"] @ ["D, VS"]
-        logit: Array["B, L, VS"] = h @ self.lm_head_weight
+        logit: Array["B, 1, VS"] = h[:, [-1], :] @ self.lm_head_weight
         return logit
 
     def generate(self, input_ids: Array["B, L"], max_new_tokens: int):
         _, L = input_ids.shape
-        for i, curr_pos in enumerate(range(L, L + max_new_tokens)):
+        for i, curr_pos in enumerate(range(L, max_new_tokens)):
             if i == 0:  # Prefill Phase
                 inputs = input_ids
                 pos = 0
             else:  # Decode Phase
                 inputs = next_id
-                pos = curr_pos - 1
+                pos = curr_pos
             logits: Array["B, 1, VS"] = self(inputs, pos)
             next_id = logits[:, -1, :].argmax(-1, keepdims=True)
             yield next_id
