@@ -8,7 +8,7 @@ Python interpreter overhead and potential optimization points.
 import dis
 import inspect
 import argparse
-from deprecated.llama3 import Llama, softmax, silu, apply_rotary_emb, repeat_kv
+from llama3np.model.base import Llama, softmax, silu, apply_rotary_emb, repeat_kv
 from datetime import datetime
 import os
 import json

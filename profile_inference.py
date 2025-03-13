@@ -17,9 +17,10 @@ import json
 from datetime import datetime
 
 # Import the Llama model and related utilities
-from deprecated.llama3 import Llama, ModelArgs
-from deprecated.tokenizer import Tokenizer
-from deprecated.utils import load_parameters
+from llama3np.model.base import Llama
+from llama3np.utils.config import ModelArgs
+from llama3np.utils.tokenizer import Tokenizer
+from llama3np.utils.loader import load_parameters
 
 @contextmanager
 def profile_section(name, results):

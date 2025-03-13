@@ -17,10 +17,11 @@ import subprocess
 from typing import List, Dict, Any, Tuple
 
 # Import both implementations
-from deprecated import llama3
-from deprecated.optimized_llama import Llama as OptimizedLlama
-from deprecated.optimized_llama import OptimizedTokenizer
-from deprecated.config import ModelArgs
+from llama3np.model.base import Llama
+from llama3np.utils.tokenizer import Tokenizer
+from llama3np.model.optimized import Llama as OptimizedLlama
+from llama3np.utils.optimized_tokenizer import OptimizedTokenizer
+from llama3np.utils.config import ModelArgs
 
 def measure_memory_usage():
     """Measure current process memory usage in MB."""
@@ -62,8 +63,8 @@ def run_benchmark(prompt: str, max_tokens: int = 50) -> Dict[str, Any]:
     # Original implementation
     print("Loading original model...")
     orig_load_start = time.time()
-    orig_tokenizer = llama3.Tokenizer("./tokenizer.model.np")
-    orig_model = llama3.Llama("./stories15M.model.npz", args)
+    orig_tokenizer = Tokenizer("./tokenizer.model.np")
+    orig_model = Llama("./stories15M.model.npz", args)
     orig_load_time = time.time() - orig_load_start
     
     # Measure memory after loading original model

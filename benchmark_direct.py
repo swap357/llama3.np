@@ -16,10 +16,11 @@ import os
 import sys
 
 # Import implementations
-from deprecated import llama3
-from deprecated.optimized_llama import apply_rotary_emb as optimized_rope
-from deprecated.optimized_llama import OptimizedTokenizer
-from deprecated.config import ModelArgs
+from llama3np.model.base import Llama
+from llama3np.utils.tokenizer import Tokenizer
+from llama3np.model.optimized import apply_rotary_emb as optimized_rope
+from llama3np.utils.optimized_tokenizer import OptimizedTokenizer
+from llama3np.utils.config import ModelArgs
 
 def measure_tokenization(prompt="Once upon a time in a land far away", iterations=100):
     """Measure tokenization performance."""
@@ -28,7 +29,7 @@ def measure_tokenization(prompt="Once upon a time in a land far away", iteration
     print(f"Iterations: {iterations}")
     
     # Initialize tokenizers
-    orig_tokenizer = llama3.Tokenizer("./tokenizer.model.np")
+    orig_tokenizer = Tokenizer("./tokenizer.model.np")
     opt_tokenizer = OptimizedTokenizer("./tokenizer.model.np")
     
     # Warmup
