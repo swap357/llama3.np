@@ -1,7 +1,7 @@
 # Python
 __pycache__/
 *.py[cod]
-*\.class
+*$py.class
 *.so
 .Python
 env/
@@ -24,6 +24,7 @@ var/
 profiles/
 analysis/
 analysis_results/
+benchmark_results/
 
 # Virtual environments
 venv/
@@ -36,3 +37,13 @@ ENV/
 *.swp
 *.swo
 .DS_Store
+
+# Model files
+# *.npz
+# *.np
+# models/
+
+# Test cache
+.pytest_cache/
+.coverage
+htmlcov/
