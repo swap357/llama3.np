@@ -152,7 +152,7 @@ class Attention:
         xv_proj: Array["B, L or 1, D"] = x @ self.v_weight
 
         if not Attention._debug_dtypes_printed_attention:
-            print("  qkv_proj xq:  dtype={str(xq_proj.dtype): <8}, shape={str(xq_proj.shape): <25}, min={np.min(xq_proj): .4f}, max={np.max(xq_proj): .4f}, mean={np.mean(xq_proj): .4f}")
+            print(f"  qkv_proj xq:  dtype={str(xq_proj.dtype): <8}, shape={str(xq_proj.shape): <25}, min={np.min(xq_proj): .4f}, max={np.max(xq_proj): .4f}, mean={np.mean(xq_proj): .4f}")
             print(f"  qkv_proj xk:  dtype={str(xk_proj.dtype): <8}, shape={str(xk_proj.shape): <25}, min={np.min(xk_proj): .4f}, max={np.max(xk_proj): .4f}, mean={np.mean(xk_proj): .4f}")
             print(f"  qkv_proj xv:  dtype={str(xv_proj.dtype): <8}, shape={str(xv_proj.shape): <25}, min={np.min(xv_proj): .4f}, max={np.max(xv_proj): .4f}, mean={np.mean(xv_proj): .4f}")
 

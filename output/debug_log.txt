@@ -55,7 +55,7 @@ attention call (first pass): trace
   input mask:   dtype=float64 , shape=(5, 5)                    (stats omitted due to -inf)
   freqs_cos:    dtype=float64 , shape=(5, 24)                  , min=-0.9900, max= 1.0000, mean= 0.8739
   freqs_sin:    dtype=float64 , shape=(5, 24)                  , min=-0.7568, max= 0.9841, mean= 0.1368
-  qkv_proj xq:  dtype={str(xq_proj.dtype): <8}, shape={str(xq_proj.shape): <25}, min={np.min(xq_proj): .4f}, max={np.max(xq_proj): .4f}, mean={np.mean(xq_proj): .4f}
+  qkv_proj xq:  dtype=float32 , shape=(1, 5, 288)              , min=-9.2512, max= 8.1409, mean=-0.0143
   qkv_proj xk:  dtype=float32 , shape=(1, 5, 288)              , min=-5.2872, max= 7.0756, mean= 0.1274
   qkv_proj xv:  dtype=float32 , shape=(1, 5, 288)              , min=-0.7419, max= 0.9885, mean= 0.0040
   qkv_reshape xq: dtype=float32 , shape=(1, 5, 6, 48)            , min=-9.2512, max= 8.1409, mean=-0.0143
@@ -88,4 +88,4 @@ attention call (first pass): trace
 Lily wanted to play with the sun, so she ran to it. But when she got there, she saw that the sun wa not shining. It wa very hot! Lily wa sad because she wanted to play with the sun.
 Then, Lily had an idea. She took the sun outside and put it on the ground. The sun wa so happy! It started to shine again. Lily and the sun played together all day long. They were
 
-Token count: 150, elapsed: 5.07s, 30 tokens/s
+Token count: 150, elapsed: 5.83s, 26 tokens/s
