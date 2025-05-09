@@ -1,0 +1,91 @@
+Starting LLaMA run with configured ModelArgs.dtype: float32
+
+attention init
+  q_weight  : dtype=float32 , shape=(288, 288)               , min=-0.6213, max= 0.5878, mean= 0.0003
+  k_weight  : dtype=float32 , shape=(288, 288)               , min=-0.5207, max= 0.4948, mean= 0.0004
+  v_weight  : dtype=float32 , shape=(288, 288)               , min=-0.0717, max= 0.0654, mean= 0.0000
+  o_weight  : dtype=float32 , shape=(288, 288)               , min=-0.2635, max= 0.3071, mean=-0.0000
+  cache_k   : dtype=float64 , shape=(1, 256, 6, 48)          , min= 0.0000, max= 0.0000, mean= 0.0000
+  cache_v   : dtype=float64 , shape=(1, 256, 6, 48)          , min= 0.0000, max= 0.0000, mean= 0.0000
+
+attention init
+  q_weight  : dtype=float32 , shape=(288, 288)               , min=-0.4343, max= 0.3888, mean=-0.0000
+  k_weight  : dtype=float32 , shape=(288, 288)               , min=-0.6568, max= 0.3575, mean=-0.0002
+  v_weight  : dtype=float32 , shape=(288, 288)               , min=-0.0726, max= 0.0891, mean= 0.0001
+  o_weight  : dtype=float32 , shape=(288, 288)               , min=-0.1244, max= 0.1970, mean= 0.0000
+  cache_k   : dtype=float64 , shape=(1, 256, 6, 48)          , min= 0.0000, max= 0.0000, mean= 0.0000
+  cache_v   : dtype=float64 , shape=(1, 256, 6, 48)          , min= 0.0000, max= 0.0000, mean= 0.0000
+
+attention init
+  q_weight  : dtype=float32 , shape=(288, 288)               , min=-0.3832, max= 0.3759, mean=-0.0000
+  k_weight  : dtype=float32 , shape=(288, 288)               , min=-0.5443, max= 0.4585, mean= 0.0000
+  v_weight  : dtype=float32 , shape=(288, 288)               , min=-0.0895, max= 0.0749, mean= 0.0000
+  o_weight  : dtype=float32 , shape=(288, 288)               , min=-0.1933, max= 0.1821, mean=-0.0000
+  cache_k   : dtype=float64 , shape=(1, 256, 6, 48)          , min= 0.0000, max= 0.0000, mean= 0.0000
+  cache_v   : dtype=float64 , shape=(1, 256, 6, 48)          , min= 0.0000, max= 0.0000, mean= 0.0000
+
+attention init
+  q_weight  : dtype=float32 , shape=(288, 288)               , min=-0.2846, max= 0.3467, mean=-0.0000
+  k_weight  : dtype=float32 , shape=(288, 288)               , min=-0.3385, max= 0.3643, mean= 0.0002
+  v_weight  : dtype=float32 , shape=(288, 288)               , min=-0.0952, max= 0.0997, mean=-0.0001
+  o_weight  : dtype=float32 , shape=(288, 288)               , min=-0.2333, max= 0.2465, mean=-0.0001
+  cache_k   : dtype=float64 , shape=(1, 256, 6, 48)          , min= 0.0000, max= 0.0000, mean= 0.0000
+  cache_v   : dtype=float64 , shape=(1, 256, 6, 48)          , min= 0.0000, max= 0.0000, mean= 0.0000
+
+attention init
+  q_weight  : dtype=float32 , shape=(288, 288)               , min=-0.2877, max= 0.2554, mean=-0.0001
+  k_weight  : dtype=float32 , shape=(288, 288)               , min=-0.3505, max= 0.2603, mean=-0.0000
+  v_weight  : dtype=float32 , shape=(288, 288)               , min=-0.1182, max= 0.1150, mean=-0.0000
+  o_weight  : dtype=float32 , shape=(288, 288)               , min=-0.1584, max= 0.1872, mean= 0.0004
+  cache_k   : dtype=float64 , shape=(1, 256, 6, 48)          , min= 0.0000, max= 0.0000, mean= 0.0000
+  cache_v   : dtype=float64 , shape=(1, 256, 6, 48)          , min= 0.0000, max= 0.0000, mean= 0.0000
+
+attention init
+  q_weight  : dtype=float32 , shape=(288, 288)               , min=-0.2989, max= 0.2627, mean= 0.0001
+  k_weight  : dtype=float32 , shape=(288, 288)               , min=-0.3232, max= 0.2694, mean= 0.0001
+  v_weight  : dtype=float32 , shape=(288, 288)               , min=-0.1566, max= 0.1459, mean=-0.0002
+  o_weight  : dtype=float32 , shape=(288, 288)               , min=-0.2226, max= 0.2823, mean= 0.0002
+  cache_k   : dtype=float64 , shape=(1, 256, 6, 48)          , min= 0.0000, max= 0.0000, mean= 0.0000
+  cache_v   : dtype=float64 , shape=(1, 256, 6, 48)          , min= 0.0000, max= 0.0000, mean= 0.0000
+
+Once upon a time
+attention call (first pass): trace
+  config.dtype: float32
+  input x:      dtype=float32 , shape=(1, 5, 288)              , min=-6.1494, max= 7.1259, mean= 0.0264
+  input mask:   dtype=float64 , shape=(5, 5)                    (stats omitted due to -inf)
+  freqs_cos:    dtype=float64 , shape=(5, 24)                  , min=-0.9900, max= 1.0000, mean= 0.8739
+  freqs_sin:    dtype=float64 , shape=(5, 24)                  , min=-0.7568, max= 0.9841, mean= 0.1368
+  qkv_proj xq:  dtype={str(xq_proj.dtype): <8}, shape={str(xq_proj.shape): <25}, min={np.min(xq_proj): .4f}, max={np.max(xq_proj): .4f}, mean={np.mean(xq_proj): .4f}
+  qkv_proj xk:  dtype=float32 , shape=(1, 5, 288)              , min=-5.2872, max= 7.0756, mean= 0.1274
+  qkv_proj xv:  dtype=float32 , shape=(1, 5, 288)              , min=-0.7419, max= 0.9885, mean= 0.0040
+  qkv_reshape xq: dtype=float32 , shape=(1, 5, 6, 48)            , min=-9.2512, max= 8.1409, mean=-0.0143
+  qkv_reshape xk: dtype=float32 , shape=(1, 5, 6, 48)            , min=-5.2872, max= 7.0756, mean= 0.1274
+  qkv_reshape xv: dtype=float32 , shape=(1, 5, 6, 48)            , min=-0.7419, max= 0.9885, mean= 0.0040
+  rope xq:      dtype=float64 , shape=(1, 5, 6, 48)            , min=-9.2402, max= 8.1555, mean=-0.0145
+  rope xk:      dtype=float64 , shape=(1, 5, 6, 48)            , min=-5.3025, max= 7.0703, mean= 0.1208
+  kv_cache write xk_rope (to k_cache): dtype=float64 , shape=(1, 5, 6, 48)            , min=-5.3025, max=7.0703, mean=0.1208
+  kv_cache write xv (to v_cache):    dtype=float32 , shape=(1, 5, 6, 48)            , min=-0.7419, max=0.9885, mean=0.0040
+  k_cache overall:                  dtype=float64 , shape=(1, 256, 6, 48)          
+  v_cache overall:                  dtype=float64 , shape=(1, 256, 6, 48)          
+  kv_cache read ks: dtype=float64 , shape=(1, 5, 6, 48)            , min=-5.3025, max= 7.0703, mean= 0.1208
+  kv_cache read vs: dtype=float64 , shape=(1, 5, 6, 48)            , min=-0.7419, max= 0.9885, mean= 0.0040
+  gqa xk:       dtype=float64 , shape=(1, 5, 6, 48)            , min=-5.3025, max= 7.0703, mean= 0.1208
+  gqa xv:       dtype=float64 , shape=(1, 5, 6, 48)            , min=-0.7419, max= 0.9885, mean= 0.0040
+  transpose xq:   dtype=float64 , shape=(1, 6, 5, 48)            , min=-9.2402, max= 8.1555, mean=-0.0145
+  transpose xk:   dtype=float64 , shape=(1, 6, 5, 48)            , min=-5.3025, max= 7.0703, mean= 0.1208
+  transpose xv:   dtype=float64 , shape=(1, 6, 5, 48)            , min=-0.7419, max= 0.9885, mean= 0.0040
+  scores_raw:     dtype=float64 , shape=(1, 6, 5, 5)             , min=-7.3643, max= 42.6878, mean= 17.3709
+  scores_scaled:  dtype=float64 , shape=(1, 6, 5, 5)             , min=-1.0629, max= 6.1615, mean= 2.5073
+  mask_slice:   dtype=float64 , shape=(1, 1, 5, 5)              (contains non-finite)
+  scores_masked:  dtype=float64 , shape=(1, 6, 5, 5)             , min=-inf, max= 6.1615, mean=-inf
+  attn_weights:   dtype=float64 , shape=(1, 6, 5, 5)             , min= 0.0000, max= 1.0000, mean= 0.2000
+  output_attn:    dtype=float64 , shape=(1, 6, 5, 48)            , min=-0.6268, max= 0.9885, mean= 0.0029
+  output_reshape: dtype=float64 , shape=(1, 5, 288)              , min=-0.6268, max= 0.9885, mean= 0.0029
+  final_output:   dtype=float64 , shape=(1, 5, 288)              , min=-0.1295, max= 0.2532, mean=-0.0000
+--- end attention call trace ---
+
+, there wa a little girl named Lily. She loved to play outside in the sunhine. One day, she saw a big, red ball in the sky. It wa the sun! Lily thought it wa so pretty.
+Lily wanted to play with the sun, so she ran to it. But when she got there, she saw that the sun wa not shining. It wa very hot! Lily wa sad because she wanted to play with the sun.
+Then, Lily had an idea. She took the sun outside and put it on the ground. The sun wa so happy! It started to shine again. Lily and the sun played together all day long. They were
+
+Token count: 150, elapsed: 5.07s, 30 tokens/s
