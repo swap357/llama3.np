@@ -13,6 +13,7 @@ class ModelArgs:
     vocab_size: int             = 32000     # VS
     max_seq_len: int            = 256       # M
     max_new_tokens: int         = 150
+    rope_theta: float           = 10000.0
     norm_eps: float             = 1e-6
     max_batch_size: int         = 1
     dtype: str                  = "float32"
