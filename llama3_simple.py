@@ -69,20 +69,28 @@ def silu(x):
 
 def compute_cos_sin_cache(head_dim, max_seq_len, base=10000, dtype=np.float32):
     logger.debug(f"compute_cos_sin_cache input dtype: {dtype}")
-    inv_freq = 1.0 / (base ** (np.arange(0, head_dim, 2)[: (head_dim // 2)] / head_dim))
-    t = np.arange(max_seq_len)
-    freqs = np.outer(t, inv_freq)
-    cos_result = np.cos(freqs)
-    sin_result = np.sin(freqs)
+    # Cast all numerical operations to the specified dtype
+    base = dtype(base)
+    inv_freq = (
+        1.0
+        / (
+            base
+            ** (np.arange(0, head_dim, 2, dtype=dtype)[: (head_dim // 2)] / head_dim)
+        )
+    ).astype(dtype)
+    t = np.arange(max_seq_len, dtype=dtype)
+    freqs = np.outer(t, inv_freq).astype(dtype)
+    cos_result = np.cos(freqs).astype(dtype)
+    sin_result = np.sin(freqs).astype(dtype)
     logger.debug(
-        f"compute_cos_sin_cache output dtypes: cos={cos_result.dtype}, sin={sin_result.dtype}"
+        f"compute_cos_sin_cache output dtypes: cos={cos_result.dtype}, sin={sin_result.dtype}"  # noqa: E501
     )
     return cos_result, sin_result
 
 
 def apply_rotary_emb(xq, xk, freqs_cos, freqs_sin):
     logger.debug(
-        f"apply_rotary_emb input dtypes: xq={xq.dtype}, xk={xk.dtype}, freqs_cos={freqs_cos.dtype}, freqs_sin={freqs_sin.dtype}"
+        f"apply_rotary_emb input dtypes: xq={xq.dtype}, xk={xk.dtype}, freqs_cos={freqs_cos.dtype}, freqs_sin={freqs_sin.dtype}"  # noqa: E501
     )
     xqri = xq.reshape(xq.shape[:-1] + (-1, 2))
     xkri = xk.reshape(xk.shape[:-1] + (-1, 2))
@@ -121,7 +129,7 @@ def repeat_kv(x, n_rep):
 
 def feed_forward(x, up_weight, gate_weight, down_weight, dtype):
     logger.debug(
-        f"feed_forward input dtypes: x={x.dtype}, up_weight={up_weight.dtype}, gate_weight={gate_weight.dtype}, down_weight={down_weight.dtype}"
+        f"feed_forward input dtypes: x={x.dtype}, up_weight={up_weight.dtype}, gate_weight={gate_weight.dtype}, down_weight={down_weight.dtype}"  # noqa: E501
     )
     swish = silu(x @ gate_weight.T)
     x_v = x @ up_weight.T
@@ -153,11 +161,11 @@ def attention(
     dtype,
 ):
     logger.debug(
-        f"attention input dtypes: x={x.dtype}, mask={mask.dtype if mask is not None else None}, freqs_cos={freqs_cos.dtype}, freqs_sin={freqs_sin.dtype}"
+        f"attention input dtypes: x={x.dtype}, mask={mask.dtype if mask is not None else None}, freqs_cos={freqs_cos.dtype}, freqs_sin={freqs_sin.dtype}"  # noqa: E501
     )
     q_weight, k_weight, v_weight, o_weight = [w.T for w in attn_weights]
     logger.debug(
-        f"attention weights dtypes: q={q_weight.dtype}, k={k_weight.dtype}, v={v_weight.dtype}, o={o_weight.dtype}"
+        f"attention weights dtypes: q={q_weight.dtype}, k={k_weight.dtype}, v={v_weight.dtype}, o={o_weight.dtype}"  # noqa: E501
     )
 
     n_kv_heads = args.n_heads if args.n_kv_heads is None else args.n_kv_heads
@@ -223,7 +231,7 @@ def transformer_block(
     logger.debug(f"transformer_block input dtype: x={x.dtype}")
     attn_weights, ff_weights, in_norm_weight, post_norm_weight = block_weights
     logger.debug(
-        f"transformer_block weights dtypes: in_norm={in_norm_weight.dtype}, post_norm={post_norm_weight.dtype}"
+        f"transformer_block weights dtypes: in_norm={in_norm_weight.dtype}, post_norm={post_norm_weight.dtype}"  # noqa: E501
     )
 
     norm_x = rmsnorm(x, in_norm_weight, args.norm_eps, dtype)
@@ -281,7 +289,7 @@ def llama_init(model_path, args):
     norm_weight = weights["model.norm.weight"]
     lm_head_weight = weights["lm_head.weight"].T  # Already in correct dtype
     logger.debug(
-        f"llama_init final weights dtypes: norm={norm_weight.dtype}, lm_head={lm_head_weight.dtype}"
+        f"llama_init final weights dtypes: norm={norm_weight.dtype}, lm_head={lm_head_weight.dtype}"  # noqa: E501
     )
     del weights
 
@@ -383,7 +391,7 @@ def llama_generate(model, input_ids, max_new_tokens):
 
     elapsed = time.time() - start
     print(
-        f"\n\nToken count: {seq_len}, elapsed: {elapsed:.2f}s, {round(seq_len / elapsed)} tokens/s"
+        f"\n\nToken count: {seq_len}, elapsed: {elapsed:.2f}s, {round(seq_len / elapsed)} tokens/s"  # noqa: E501
     )
 
 
