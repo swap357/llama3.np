@@ -1,10 +1,10 @@
-from typing import List
 import json
+from typing import List
 
 
 class Tokenizer:
     def __init__(self, model_path: str):
-        with open(model_path, "r", encoding="utf-8") as f:
+        with open(model_path, encoding="utf-8") as f:
             model = json.load(f)
         self.vocab = model["tokens"]
         self.scores = model["scores"]
@@ -15,14 +15,14 @@ class Tokenizer:
         try:
             index = self.vocab.index(token)
             return index
-        except ValueError as err:
+        except ValueError:
             return -1
 
     def encode(
-            self,
-            text: str,
-            add_bos: bool = True,
-            add_eos: bool = False,
+        self,
+        text: str,
+        add_bos: bool = True,
+        add_eos: bool = False,
     ) -> List[int]:
         tokens = []
         for pos, char in enumerate(text):
@@ -49,7 +49,7 @@ class Tokenizer:
             # Merge the consecutive pair (best_idx, best_idx+1) into new token best_id
             tokens[best_idx] = best_id
             # Delete token at position best_idx+1, shift the entire sequence back 1
-            tokens = tokens[0: best_idx + 1] + tokens[best_idx + 2:]
+            tokens = tokens[0 : best_idx + 1] + tokens[best_idx + 2 :]
         if add_bos:
             tokens.insert(0, self.bos_id)
         if add_eos:
