@@ -1,6 +1,10 @@
+import logging
 import math
+import os
 import sys
 import time
+from datetime import datetime
+from logging.handlers import RotatingFileHandler
 
 import numpy as np
 
@@ -8,26 +12,78 @@ from config import ModelArgs
 from tokenizer import Tokenizer
 from utils import load_parameters
 
+# Create debug directory if it doesn't exist
+debug_dir = os.path.join("output", "debug")
+os.makedirs(debug_dir, exist_ok=True)
+
+# Configure logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+# Create formatters
+debug_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+
+# Create timestamped log file
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+debug_file = os.path.join(debug_dir, f"llama3_debug_{timestamp}.log")
+
+# File handler for debug logs
+file_handler = RotatingFileHandler(
+    debug_file,
+    maxBytes=10 * 1024 * 1024,  # 10MB
+    backupCount=5,
+)
+file_handler.setLevel(logging.DEBUG)
+file_handler.setFormatter(debug_formatter)
+
+# Add only file handler to logger (no console output for debug logs)
+logger.addHandler(file_handler)
+
+# Log the start of a new run
+logger.debug(f"Starting new run at {timestamp}")
+
+# Create a separate logger for stdout output
+stdout_logger = logging.getLogger("stdout")
+stdout_logger.setLevel(logging.INFO)
+stdout_handler = logging.StreamHandler(sys.stdout)
+stdout_handler.setLevel(logging.INFO)
+stdout_logger.addHandler(stdout_handler)
+
 np.random.seed(42)
 
 
 def softmax(x):
+    logger.debug(f"softmax input dtype: {x.dtype}")
     exp_x = np.exp(x - np.max(x, axis=-1, keepdims=True))
-    return exp_x / np.sum(exp_x, axis=-1, keepdims=True)
+    result = exp_x / np.sum(exp_x, axis=-1, keepdims=True)
+    logger.debug(f"softmax output dtype: {result.dtype}")
+    return result
 
 
 def silu(x):
-    return x * (1 / (1 + np.exp(-x)))
+    logger.debug(f"silu input dtype: {x.dtype}")
+    result = x * (1 / (1 + np.exp(-x)))
+    logger.debug(f"silu output dtype: {result.dtype}")
+    return result
 
 
 def compute_cos_sin_cache(head_dim, max_seq_len, base=10000, dtype=np.float32):
+    logger.debug(f"compute_cos_sin_cache input dtype: {dtype}")
     inv_freq = 1.0 / (base ** (np.arange(0, head_dim, 2)[: (head_dim // 2)] / head_dim))
     t = np.arange(max_seq_len)
     freqs = np.outer(t, inv_freq)
-    return np.cos(freqs).astype(dtype), np.sin(freqs).astype(dtype)
+    cos_result = np.cos(freqs)
+    sin_result = np.sin(freqs)
+    logger.debug(
+        f"compute_cos_sin_cache output dtypes: cos={cos_result.dtype}, sin={sin_result.dtype}"
+    )
+    return cos_result, sin_result
 
 
 def apply_rotary_emb(xq, xk, freqs_cos, freqs_sin):
+    logger.debug(
+        f"apply_rotary_emb input dtypes: xq={xq.dtype}, xk={xk.dtype}, freqs_cos={freqs_cos.dtype}, freqs_sin={freqs_sin.dtype}"
+    )
     xqri = xq.reshape(xq.shape[:-1] + (-1, 2))
     xkri = xk.reshape(xk.shape[:-1] + (-1, 2))
     xq_r, xq_i = np.split(xqri, 2, axis=-1)
@@ -48,27 +104,40 @@ def apply_rotary_emb(xq, xk, freqs_cos, freqs_sin):
     xk_out = np.stack([xk_out_r, xk_out_i], axis=-1).reshape(
         xk_out_r.shape[:-1] + (-1,)
     )
+    logger.debug(
+        f"apply_rotary_emb output dtypes: xq_out={xq_out.dtype}, xk_out={xk_out.dtype}"
+    )
     return xq_out, xk_out
 
 
 def repeat_kv(x, n_rep):
+    logger.debug(f"repeat_kv input dtype: {x.dtype}")
     if n_rep == 1:
         return x
-    return np.repeat(x, n_rep, axis=2)
+    result = np.repeat(x, n_rep, axis=2)
+    logger.debug(f"repeat_kv output dtype: {result.dtype}")
+    return result
 
 
 def feed_forward(x, up_weight, gate_weight, down_weight, dtype):
-    swish = silu(x @ gate_weight.T.astype(dtype))
-    x_v = x @ up_weight.T.astype(dtype)
+    logger.debug(
+        f"feed_forward input dtypes: x={x.dtype}, up_weight={up_weight.dtype}, gate_weight={gate_weight.dtype}, down_weight={down_weight.dtype}"
+    )
+    swish = silu(x @ gate_weight.T)
+    x_v = x @ up_weight.T
     x_ff = swish * x_v
-    x_out = x_ff @ down_weight.T.astype(dtype)
-    return x_out.astype(dtype)
+    x_out = x_ff @ down_weight.T
+    logger.debug(f"feed_forward output dtype: {x_out.dtype}")
+    return x_out
 
 
 def rmsnorm(x, weight, eps, dtype):
-    z_float32 = (x.astype(np.float32) ** 2).mean(-1, keepdims=True) + eps
-    z = x / np.sqrt(z_float32.astype(dtype))
-    return (z * weight.astype(dtype)).astype(dtype)
+    logger.debug(f"rmsnorm input dtypes: x={x.dtype}, weight={weight.dtype}")
+    z_float = (x**2).mean(-1, keepdims=True) + eps
+    z = x / np.sqrt(z_float)
+    result = z * weight
+    logger.debug(f"rmsnorm output dtype: {result.dtype}")
+    return result
 
 
 def attention(
@@ -83,7 +152,14 @@ def attention(
     cache_v,
     dtype,
 ):
-    q_weight, k_weight, v_weight, o_weight = [w.T.astype(dtype) for w in attn_weights]
+    logger.debug(
+        f"attention input dtypes: x={x.dtype}, mask={mask.dtype if mask is not None else None}, freqs_cos={freqs_cos.dtype}, freqs_sin={freqs_sin.dtype}"
+    )
+    q_weight, k_weight, v_weight, o_weight = [w.T for w in attn_weights]
+    logger.debug(
+        f"attention weights dtypes: q={q_weight.dtype}, k={k_weight.dtype}, v={v_weight.dtype}, o={o_weight.dtype}"
+    )
+
     n_kv_heads = args.n_heads if args.n_kv_heads is None else args.n_kv_heads
     assert args.n_heads % n_kv_heads == 0
     n_local_heads = args.n_heads
@@ -97,9 +173,12 @@ def attention(
     xk = x @ k_weight
     xv = x @ v_weight
 
-    xq = xq.reshape(batch_size, seq_len, n_local_heads, head_dim).astype(dtype)
-    xk = xk.reshape(batch_size, seq_len, n_local_kv_heads, head_dim).astype(dtype)
-    xv = xv.reshape(batch_size, seq_len, n_local_kv_heads, head_dim).astype(dtype)
+    xq = xq.reshape(batch_size, seq_len, n_local_heads, head_dim)
+    xk = xk.reshape(batch_size, seq_len, n_local_kv_heads, head_dim)
+    xv = xv.reshape(batch_size, seq_len, n_local_kv_heads, head_dim)
+    logger.debug(
+        f"attention intermediate dtypes: xq={xq.dtype}, xk={xk.dtype}, xv={xv.dtype}"
+    )
 
     xq, xk = apply_rotary_emb(xq, xk, freqs_cos, freqs_sin)
 
@@ -115,18 +194,18 @@ def attention(
     xk = xk.transpose(0, 2, 1, 3)
     xv = xv.transpose(0, 2, 1, 3)
 
-    attention_float32 = (
-        xq.astype(np.float32) @ xk.transpose(0, 1, 3, 2).astype(np.float32)
-    ) / math.sqrt(head_dim)
+    attention_scores = (xq @ xk.transpose(0, 1, 3, 2)) / math.sqrt(head_dim)
+    logger.debug(f"attention_scores dtype: {attention_scores.dtype}")
     if mask is not None:
-        attention_float32 = attention_float32 + mask[None, None, :, :].astype(
-            np.float32
-        )
-    attn = softmax(attention_float32).astype(dtype)
+        attention_scores = attention_scores + mask[None, None, :, :]
+    logger.debug(f"attention_scores dtype after mask: {attention_scores.dtype}")
+    attn = softmax(attention_scores)
+    logger.debug(f"attn dtype after softmax: {attn.dtype}")
     output = attn @ xv
     output = output.transpose(0, 2, 1, 3).reshape(batch_size, seq_len, -1)
     output = output @ o_weight
-    return output.astype(dtype), cache_k, cache_v
+    logger.debug(f"attention output dtype: {output.dtype}")
+    return output, cache_k, cache_v
 
 
 def transformer_block(
@@ -141,7 +220,12 @@ def transformer_block(
     cache_v,
     dtype,
 ):
+    logger.debug(f"transformer_block input dtype: x={x.dtype}")
     attn_weights, ff_weights, in_norm_weight, post_norm_weight = block_weights
+    logger.debug(
+        f"transformer_block weights dtypes: in_norm={in_norm_weight.dtype}, post_norm={post_norm_weight.dtype}"
+    )
+
     norm_x = rmsnorm(x, in_norm_weight, args.norm_eps, dtype)
     h1, cache_k, cache_v = attention(
         norm_x,
@@ -155,17 +239,26 @@ def transformer_block(
         cache_v,
         dtype,
     )
-    z = (x + h1).astype(dtype)
+    z = x + h1
     norm_z = rmsnorm(z, post_norm_weight, args.norm_eps, dtype)
     h2 = feed_forward(norm_z, *ff_weights, dtype)
-    out = (z + h2).astype(dtype)
+    out = z + h2
+    logger.debug(f"transformer_block output dtype: {out.dtype}")
     return out, cache_k, cache_v
 
 
 def llama_init(model_path, args):
+    logger.debug(f"llama_init input dtype: {args.dtype}")
     dtype = getattr(np, args.dtype)
+
+    # Load and convert all weights to specified dtype immediately
     weights = load_parameters(model_path)
-    tok_embedding = weights["model.embed_tokens.weight"].astype(dtype)
+    weights = {k: v.astype(dtype) for k, v in weights.items()}
+    logger.debug(f"All weights converted to {dtype}")
+
+    tok_embedding = weights["model.embed_tokens.weight"]  # Already in correct dtype
+    logger.debug(f"llama_init embedding dtype: {tok_embedding.dtype}")
+
     freqs_cos, freqs_sin = compute_cos_sin_cache(
         args.dim // args.n_heads, args.max_seq_len, dtype=dtype
     )
@@ -186,7 +279,10 @@ def llama_init(model_path, args):
         post_norm = weights[f"model.layers.{layer_id}.post_attention_layernorm.weight"]
         layer_blocks.append((attn_weights, ff_weights, in_norm, post_norm))
     norm_weight = weights["model.norm.weight"]
-    lm_head_weight = weights["lm_head.weight"].T.astype(dtype)
+    lm_head_weight = weights["lm_head.weight"].T  # Already in correct dtype
+    logger.debug(
+        f"llama_init final weights dtypes: norm={norm_weight.dtype}, lm_head={lm_head_weight.dtype}"
+    )
     del weights
 
     # Preallocate caches for all layers (list of np.arrays)
@@ -203,6 +299,9 @@ def llama_init(model_path, args):
         for _ in range(args.n_layers)
     ]
     caches_v = [np.zeros_like(caches_k[0]) for _ in range(args.n_layers)]
+    logger.debug(
+        f"llama_init cache dtypes: k={caches_k[0].dtype}, v={caches_v[0].dtype}"
+    )
 
     return {
         "args": args,
@@ -221,8 +320,14 @@ def llama_init(model_path, args):
 def llama_forward(model, input_ids, start_pos):
     args = model["args"]
     dtype = model["dtype"]
+    logger.debug(
+        f"llama_forward input dtypes: input_ids={input_ids.dtype}, dtype={dtype}"
+    )
+
     _, seq_len = input_ids.shape
-    h = model["tok_embedding"][input_ids].astype(dtype)
+    h = model["tok_embedding"][input_ids]
+    logger.debug(f"llama_forward embedding output dtype: {h.dtype}")
+
     freqs_cos = model["freqs_cos"][start_pos : start_pos + seq_len]
     freqs_sin = model["freqs_sin"][start_pos : start_pos + seq_len]
 
@@ -231,10 +336,8 @@ def llama_forward(model, input_ids, start_pos):
         mask = np.full((seq_len, seq_len), float("-inf"), dtype=dtype)
         mask = np.triu(mask, k=1)
         zeros_shape = (seq_len, start_pos)
-        if dtype is np.float16:
-            mask = np.concatenate([np.zeros(zeros_shape, dtype=dtype), mask], axis=1)
-        else:
-            mask = np.concatenate([np.zeros(zeros_shape), mask], axis=1).astype(dtype)
+        mask = np.concatenate([np.zeros(zeros_shape, dtype=dtype), mask], axis=1)
+        logger.debug(f"llama_forward mask dtype: {mask.dtype}")
 
     caches_k = model["caches_k"]
     caches_v = model["caches_v"]
@@ -254,9 +357,8 @@ def llama_forward(model, input_ids, start_pos):
         )
 
     h = rmsnorm(h, model["norm_weight"], args.norm_eps, dtype)
-    logit = (h[:, [-1], :] @ model["lm_head_weight"].astype(np.float32)).astype(
-        np.float32
-    )
+    logit = h[:, [-1], :] @ model["lm_head_weight"]
+    logger.debug(f"llama_forward final output dtype: {logit.dtype}")
     return logit
 
 
@@ -281,8 +383,7 @@ def llama_generate(model, input_ids, max_new_tokens):
 
     elapsed = time.time() - start
     print(
-        f"\n\nToken count: {seq_len}, elapsed: {elapsed:.2f}s, "
-        f"{round(seq_len / elapsed)} tokens/s"
+        f"\n\nToken count: {seq_len}, elapsed: {elapsed:.2f}s, {round(seq_len / elapsed)} tokens/s"
     )
 
 
@@ -308,5 +409,4 @@ if __name__ == "__main__":
         output_id = id_val[0].tolist()
         if output_id[-1] in [tokenizer.eos_id, tokenizer.bos_id]:
             break
-        print(tokenizer.decode(output_id), end="")
-        sys.stdout.flush()
+        print(tokenizer.decode(output_id), end="", flush=True)
