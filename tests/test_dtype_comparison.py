@@ -1,4 +1,8 @@
+import cProfile
+import io
+import pstats
 import time
+from pstats import SortKey
 
 import numpy as np
 import pytest
@@ -121,6 +125,112 @@ def test_dtype_comparison():
     if not np.array_equal(top_k_fp32, top_k_fp16):
         print("FP32 top-k:", top_k_fp32)
         print("FP16 top-k:", top_k_fp16)
+
+
+def test_performance_profiling():
+    """Profile and compare FP32 vs FP16 performance to identify bottlenecks."""
+    print("\nProfiling FP32 vs FP16 performance:")
+
+    # Test matrix multiplication with different sizes
+    sizes = [128, 256, 512, 1024]
+    print("\nMatrix multiplication timing comparison:")
+    print("Size\tFP32 (s)\tFP16 (s)\tRatio (FP32/FP16)")
+    print("-" * 50)
+
+    for size in sizes:
+        # Create test matrices
+        x = np.random.randn(size, size).astype(np.float32)
+        y = np.random.randn(size, size).astype(np.float32)
+        x_fp16 = x.astype(np.float16)
+        y_fp16 = y.astype(np.float16)
+
+        # Warm up
+        _ = np.matmul(x, y)
+        _ = np.matmul(x_fp16, y_fp16)
+
+        # Time FP32
+        start = time.time()
+        for _ in range(10):  # Run multiple times for better timing
+            _ = np.matmul(x, y)
+        fp32_time = (time.time() - start) / 10
+
+        # Time FP16
+        start = time.time()
+        for _ in range(10):
+            _ = np.matmul(x_fp16, y_fp16)
+        fp16_time = (time.time() - start) / 10
+
+        print(
+            f"{size}x{size}\t{fp32_time:.6f}\t{fp16_time:.6f}\t{fp32_time / fp16_time:.2f}x"
+        )
+
+    # Test type conversion overhead
+    print("\nType conversion timing:")
+    size = 512
+    x = np.random.randn(size, size).astype(np.float32)
+
+    # Time conversions
+    start = time.time()
+    for _ in range(100):
+        _ = x.astype(np.float16)
+    fp32_to_fp16_time = (time.time() - start) / 100
+
+    x_fp16 = x.astype(np.float16)
+    start = time.time()
+    for _ in range(100):
+        _ = x_fp16.astype(np.float32)
+    fp16_to_fp32_time = (time.time() - start) / 100
+
+    print(f"FP32 to FP16: {fp32_to_fp16_time:.6f}s")
+    print(f"FP16 to FP32: {fp16_to_fp32_time:.6f}s")
+
+    # Test if implicit conversion is happening
+    print("\nChecking for implicit conversions:")
+    size = 512  # Use consistent size
+    x = np.random.randn(size, size).astype(np.float32)
+    y = np.random.randn(size, size).astype(np.float32)
+    x_fp16 = x.astype(np.float16)
+    y_fp16 = y.astype(np.float16)
+
+    # Profile a single matrix multiplication
+    pr = cProfile.Profile()
+    pr.enable()
+    result = np.matmul(x_fp16, y_fp16)
+    pr.disable()
+
+    # Check result dtype
+    print(f"Result dtype: {result.dtype}")
+
+    s = io.StringIO()
+    ps = pstats.Stats(pr, stream=s).sort_stats(SortKey.CUMULATIVE)
+    ps.print_stats(10)  # Show top 10 functions
+    print(s.getvalue())
+
+    # Test memory bandwidth
+    print("\nMemory bandwidth test:")
+    size = 1024
+    x = np.random.randn(size, size).astype(np.float32)
+    x_fp16 = x.astype(np.float16)
+
+    # Time memory operations
+    start = time.time()
+    for _ in range(100):
+        _ = x.copy()
+    fp32_copy_time = (time.time() - start) / 100
+
+    start = time.time()
+    for _ in range(100):
+        _ = x_fp16.copy()
+    fp16_copy_time = (time.time() - start) / 100
+
+    print(f"FP32 copy time: {fp32_copy_time:.6f}s")
+    print(f"FP16 copy time: {fp16_copy_time:.6f}s")
+    print(f"Copy ratio (FP32/FP16): {fp32_copy_time / fp16_copy_time:.2f}x")
+
+    # Test BLAS implementation
+    print("\nBLAS implementation info:")
+    print(f"NumPy version: {np.__version__}")
+    print(f"BLAS info: {np.show_config()}")
 
 
 if __name__ == "__main__":
