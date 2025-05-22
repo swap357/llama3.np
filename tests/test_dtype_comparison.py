@@ -133,7 +133,7 @@ def test_performance_profiling():
 
     # Test matrix multiplication with different sizes
     sizes = [128, 256, 512, 1024]
-    print("\nMatrix multiplication timing comparison:")
+    print("\nnp.matmul timing comparison:")
     print("Size\tFP32 (s)\tFP16 (s)\tRatio (FP32/FP16)")
     print("-" * 50)
 
@@ -161,11 +161,11 @@ def test_performance_profiling():
         fp16_time = (time.time() - start) / 10
 
         print(
-            f"{size}x{size}\t{fp32_time:.6f}\t{fp16_time:.6f}\t{fp32_time / fp16_time:.2f}x"
+            f"{size}x{size:<6} {fp32_time:>11.6f} {fp16_time:>11.6f} {fp32_time/fp16_time:>19.2f}x"
         )
 
     # Test type conversion overhead
-    print("\nType conversion timing:")
+    print("\ntype conversion timing:")
     size = 512
     x = np.random.randn(size, size).astype(np.float32)
 
@@ -184,30 +184,7 @@ def test_performance_profiling():
     print(f"FP32 to FP16: {fp32_to_fp16_time:.6f}s")
     print(f"FP16 to FP32: {fp16_to_fp32_time:.6f}s")
 
-    # Test if implicit conversion is happening
-    print("\nChecking for implicit conversions:")
-    size = 512  # Use consistent size
-    x = np.random.randn(size, size).astype(np.float32)
-    y = np.random.randn(size, size).astype(np.float32)
-    x_fp16 = x.astype(np.float16)
-    y_fp16 = y.astype(np.float16)
-
-    # Profile a single matrix multiplication
-    pr = cProfile.Profile()
-    pr.enable()
-    result = np.matmul(x_fp16, y_fp16)
-    pr.disable()
-
-    # Check result dtype
-    print(f"Result dtype: {result.dtype}")
-
-    s = io.StringIO()
-    ps = pstats.Stats(pr, stream=s).sort_stats(SortKey.CUMULATIVE)
-    ps.print_stats(10)  # Show top 10 functions
-    print(s.getvalue())
-
-    # Test memory bandwidth
-    print("\nMemory bandwidth test:")
+    print("\nx.copy times:")
     size = 1024
     x = np.random.randn(size, size).astype(np.float32)
     x_fp16 = x.astype(np.float16)
