@@ -23,25 +23,25 @@ def silu(x):
 
 
 def compute_cos_sin_cache(head_dim, max_seq_len, base=10000, dtype=np.float32):
-    positions = np.arange(0, head_dim, 2, dtype=dtype)          # [0, 2, 4, ...]
-    positions = positions[: (head_dim // 2)]                    # Take only half
-    dim_factors = positions / head_dim                          # [0/dim, 2/dim, 4/dim, ...]
+    positions = np.arange(0, head_dim, 2, dtype=dtype)  # [0, 2, 4, ...]
+    positions = positions[: (head_dim // 2)]  # Take only half
+    dim_factors = positions / head_dim  # [0/dim, 2/dim, 4/dim, ...]
     base = dtype(base)
-    power_factors = base**dim_factors                           # [base^0, base^(2/dim), ...]
-    inv_freq = 1.0 / power_factors                              # [1/base^0, 1/base^(2/dim), ...]
+    power_factors = base**dim_factors  # [base^0, base^(2/dim), ...]
+    inv_freq = 1.0 / power_factors  # [1/base^0, 1/base^(2/dim), ...]
     timesteps = np.arange(max_seq_len, dtype=dtype)
     freqs = np.zeros((max_seq_len, head_dim // 2), dtype=dtype)
     for i in range(max_seq_len):
         for j in range(head_dim // 2):
             freqs[i, j] = (
                 timesteps[i] * inv_freq[j]
-            )                                                   # [0 * 1/base^0, 1 * 1/base^(2/dim), 2 * 1/base^(4/dim), ...]
+            )
     cos_result = np.cos(
         freqs
-    )                                                           # [cos(0 * 1/base^0), cos(1 * 1/base^(2/dim)), cos(2 * 1/base^(4/dim)), ...]
+    )
     sin_result = np.sin(
         freqs
-    )                                                           # [sin(0 * 1/base^0), sin(1 * 1/base^(2/dim)), sin(2 * 1/base^(4/dim)), ...]
+    )
 
     return cos_result, sin_result
 
@@ -165,6 +165,46 @@ def transformer_block(
     return out, cache_k, cache_v
 
 
+def llama_forward(model, input_ids, start_pos):
+    args = model["args"]
+    dtype = model["dtype"]
+
+    _, seq_len = input_ids.shape
+    h = model["tok_embedding"][input_ids]
+
+    freqs_cos = model["freqs_cos"][start_pos : start_pos + seq_len]
+    freqs_sin = model["freqs_sin"][start_pos : start_pos + seq_len]
+
+    mask = None
+    if seq_len > 1:
+        mask = np.full((seq_len, seq_len), float("-inf"), dtype=dtype)
+        mask = np.triu(mask, k=1)
+        zeros_shape = (seq_len, start_pos)
+        mask = np.concatenate([np.zeros(zeros_shape, dtype=dtype), mask], axis=1)
+
+    caches_k = model["caches_k"]
+    caches_v = model["caches_v"]
+
+    for i, block in enumerate(model["layer_blocks"]):
+        h, caches_k[i], caches_v[i] = transformer_block(
+            h,
+            start_pos,
+            mask,
+            freqs_cos,
+            freqs_sin,
+            block,
+            args,
+            caches_k[i],
+            caches_v[i],
+        )
+
+    h = rmsnorm(h, model["norm_weight"], args.norm_eps)
+    logit = h[:, [-1], :] @ model["lm_head_weight"]
+    return logit
+
+
+# -- LLAMA init and generation methods below this point --
+
 def llama_init(model_path, args):
     dtype = getattr(np, args.dtype)
 
@@ -223,44 +263,6 @@ def llama_init(model_path, args):
         "caches_k": caches_k,
         "caches_v": caches_v,
     }
-
-
-def llama_forward(model, input_ids, start_pos):
-    args = model["args"]
-    dtype = model["dtype"]
-
-    _, seq_len = input_ids.shape
-    h = model["tok_embedding"][input_ids]
-
-    freqs_cos = model["freqs_cos"][start_pos : start_pos + seq_len]
-    freqs_sin = model["freqs_sin"][start_pos : start_pos + seq_len]
-
-    mask = None
-    if seq_len > 1:
-        mask = np.full((seq_len, seq_len), float("-inf"), dtype=dtype)
-        mask = np.triu(mask, k=1)
-        zeros_shape = (seq_len, start_pos)
-        mask = np.concatenate([np.zeros(zeros_shape, dtype=dtype), mask], axis=1)
-
-    caches_k = model["caches_k"]
-    caches_v = model["caches_v"]
-
-    for i, block in enumerate(model["layer_blocks"]):
-        h, caches_k[i], caches_v[i] = transformer_block(
-            h,
-            start_pos,
-            mask,
-            freqs_cos,
-            freqs_sin,
-            block,
-            args,
-            caches_k[i],
-            caches_v[i],
-        )
-
-    h = rmsnorm(h, model["norm_weight"], args.norm_eps)
-    logit = h[:, [-1], :] @ model["lm_head_weight"]
-    return logit
 
 
 def llama_generate(model, input_ids, max_new_tokens):
