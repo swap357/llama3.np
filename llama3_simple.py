@@ -282,11 +282,6 @@ def llama_generate(model, input_ids, max_new_tokens):
         if current_len >= model["args"].max_seq_len:
             break
 
-    elapsed = time.time() - start
-    print(
-        f"\n\nToken count: {seq_len}, elapsed: {elapsed:.2f}s, {round(seq_len / elapsed)} tokens/s"  # noqa: E501
-    )
-
 
 # -- Main script
 if __name__ == "__main__":
@@ -311,3 +306,7 @@ if __name__ == "__main__":
         if output_id[-1] in [tokenizer.eos_id, tokenizer.bos_id]:
             break
         print(tokenizer.decode(output_id), end="", flush=True)
+    elapsed = time.time() - start
+    print(
+        f"\n\nToken count: {seq_len}, elapsed: {elapsed:.2f}s, {round(seq_len / elapsed)} tokens/s"  # noqa: E501
+    )

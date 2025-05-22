@@ -23,15 +23,18 @@ MAX_SEQ_LEN = config.max_seq_len
 ATOL = 1e-4
 RTOL = 2e-4
 
+
 def print_comparison_header():
     """Print header showing we're comparing the two implementations."""
     print("\nllama3.py vs llama3_simple.py\n")
+
 
 @pytest.fixture(autouse=True)
 def setup_test():
     """Setup that runs before each test."""
     print_comparison_header()
     yield
+
 
 @pytest.fixture
 def random_input():
@@ -174,62 +177,6 @@ def test_full_model_forward():
         "Top-k predictions differ between implementations"
     )
     assert_allclose(logits_oop, logits_functional, rtol=RTOL, atol=ATOL)
-
-
-def test_dtype_comparison():
-    """Compare model performance and accuracy between FP32 and FP16 implementations."""
-    print("\nllama3_simple.py - FP32 vs FP16")
-
-    args_fp32 = ModelArgs()
-    args_fp32.dtype = "float32"
-
-    args_fp16 = ModelArgs()
-    args_fp16.dtype = "float16"
-
-    # Initialize models with different dtypes
-    model_fp32 = llama_functional.llama_init("./stories15M.model.npz", args_fp32)
-    model_fp16 = llama_functional.llama_init("./stories15M.model.npz", args_fp16)
-
-    # Create same input for both models
-    input_ids = np.random.randint(0, 100, size=(1, 4), dtype=np.int32)
-    start_pos = 0
-
-    # Time and run forward passes
-    import time
-
-    # FP32 forward pass
-    start_fp32 = time.time()
-    logits_fp32 = llama_functional.llama_forward(model_fp32, input_ids, start_pos)
-    fp32_time = time.time() - start_fp32
-
-    # FP16 forward pass
-    start_fp16 = time.time()
-    logits_fp16 = llama_functional.llama_forward(model_fp16, input_ids, start_pos)
-    fp16_time = time.time() - start_fp16
-
-    print("\nPerformance Comparison:")
-    print(f"FP32 forward time: {fp32_time:.4f}s")
-    print(f"FP16 forward time: {fp16_time:.4f}s")
-    print(f"ratio (FP32/FP16): {fp32_time / fp16_time:.2f}x")
-
-    # Compare outputs
-    diff = np.abs(logits_fp32 - logits_fp16.astype(np.float32))
-    print("\nnumerical differences (FP32 vs FP16):")
-    print(f"logits_fp32: {logits_fp32}")
-    print(f"logits_fp16: {logits_fp16}")
-    print(f"Max absolute diff: {np.max(diff):.2e}")
-    print(f"Mean absolute diff: {np.mean(diff):.2e}")
-    print(f"Median absolute diff: {np.median(diff):.2e}")
-
-    # Compare top-k predictions
-    k = 5
-    top_k_fp32 = np.argsort(logits_fp32[0, 0])[-k:][::-1]
-    top_k_fp16 = np.argsort(logits_fp16[0, 0])[-k:][::-1]
-
-    print(f"\nTop {k} predictions")
-    if not np.array_equal(top_k_fp32, top_k_fp16):
-        print("FP32 top-k:", top_k_fp32)
-        print("FP16 top-k:", top_k_fp16)
 
 
 if __name__ == "__main__":
