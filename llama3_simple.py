@@ -23,25 +23,25 @@ def silu(x):
 
 
 def compute_cos_sin_cache(head_dim, max_seq_len, base=10000, dtype=np.float32):
-    positions = np.arange(0, head_dim, 2, dtype=dtype)  # [0, 2, 4, ...]
-    positions = positions[: (head_dim // 2)]  # Take only half
-    dim_factors = positions / head_dim  # [0/dim, 2/dim, 4/dim, ...]
+    positions = np.arange(0, head_dim, 2, dtype=dtype)          # [0, 2, 4, ...]
+    positions = positions[: (head_dim // 2)]                    # Take only half
+    dim_factors = positions / head_dim                          # [0/dim, 2/dim, 4/dim, ...]
     base = dtype(base)
-    power_factors = base**dim_factors  # [base^0, base^(2/dim), ...]
-    inv_freq = 1.0 / power_factors  # [1/base^0, 1/base^(2/dim), ...]
+    power_factors = base**dim_factors                           # [base^0, base^(2/dim), ...]
+    inv_freq = 1.0 / power_factors                              # [1/base^0, 1/base^(2/dim), ...]
     timesteps = np.arange(max_seq_len, dtype=dtype)
     freqs = np.zeros((max_seq_len, head_dim // 2), dtype=dtype)
     for i in range(max_seq_len):
         for j in range(head_dim // 2):
             freqs[i, j] = (
                 timesteps[i] * inv_freq[j]
-            )  # [0 * 1/base^0, 1 * 1/base^(2/dim), 2 * 1/base^(4/dim), ...]
+            )                                                   # [0 * 1/base^0, 1 * 1/base^(2/dim), 2 * 1/base^(4/dim), ...]
     cos_result = np.cos(
         freqs
-    )  # [cos(0 * 1/base^0), cos(1 * 1/base^(2/dim)), cos(2 * 1/base^(4/dim)), ...]
+    )                                                           # [cos(0 * 1/base^0), cos(1 * 1/base^(2/dim)), cos(2 * 1/base^(4/dim)), ...]
     sin_result = np.sin(
         freqs
-    )  # [sin(0 * 1/base^0), sin(1 * 1/base^(2/dim)), sin(2 * 1/base^(4/dim)), ...]
+    )                                                           # [sin(0 * 1/base^0), sin(1 * 1/base^(2/dim)), sin(2 * 1/base^(4/dim)), ...]
 
     return cos_result, sin_result
 
