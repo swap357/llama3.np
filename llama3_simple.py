@@ -68,7 +68,7 @@ def repeat_kv(x, n_rep):
     return result
 
 
-def feed_forward(x, up_weight, gate_weight, down_weight, dtype):
+def feed_forward(x, up_weight, gate_weight, down_weight):
     swish = silu(x @ gate_weight.T)
     x_v = x @ up_weight.T
     x_ff = swish * x_v
@@ -76,7 +76,7 @@ def feed_forward(x, up_weight, gate_weight, down_weight, dtype):
     return x_out
 
 
-def rmsnorm(x, weight, eps, dtype):
+def rmsnorm(x, weight, eps):
     z_float = (x**2).mean(-1, keepdims=True) + eps
     z = x / np.sqrt(z_float)
     result = z * weight
@@ -93,7 +93,6 @@ def attention(
     args,
     cache_k,
     cache_v,
-    dtype,
 ):
     q_weight, k_weight, v_weight, o_weight = [w.T for w in attn_weights]
 
@@ -148,11 +147,10 @@ def transformer_block(
     args,
     cache_k,
     cache_v,
-    dtype,
 ):
     attn_weights, ff_weights, in_norm_weight, post_norm_weight = block_weights
 
-    norm_x = rmsnorm(x, in_norm_weight, args.norm_eps, dtype)
+    norm_x = rmsnorm(x, in_norm_weight, args.norm_eps)
     h1, cache_k, cache_v = attention(
         norm_x,
         start_pos,
@@ -163,11 +161,10 @@ def transformer_block(
         args,
         cache_k,
         cache_v,
-        dtype,
     )
     z = x + h1
-    norm_z = rmsnorm(z, post_norm_weight, args.norm_eps, dtype)
-    h2 = feed_forward(norm_z, *ff_weights, dtype)
+    norm_z = rmsnorm(z, post_norm_weight, args.norm_eps)
+    h2 = feed_forward(norm_z, *ff_weights)
     out = z + h2
     return out, cache_k, cache_v
 
@@ -264,10 +261,9 @@ def llama_forward(model, input_ids, start_pos):
             args,
             caches_k[i],
             caches_v[i],
-            dtype,
         )
 
-    h = rmsnorm(h, model["norm_weight"], args.norm_eps, dtype)
+    h = rmsnorm(h, model["norm_weight"], args.norm_eps)
     logit = h[:, [-1], :] @ model["lm_head_weight"]
     return logit
 
