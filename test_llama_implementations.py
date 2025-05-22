@@ -44,14 +44,14 @@ def test_softmax():
     x = np.random.randn(BATCH_SIZE, N_HEADS, SEQ_LEN, SEQ_LEN).astype(np.float32)
     result_oop = llama_oop.softmax(x)
     result_functional = llama_functional.softmax(x)
-    assert(result_oop == result_functional).all()
+    assert (result_oop == result_functional).all()
 
 
 def test_silu():
     x = np.random.randn(BATCH_SIZE, SEQ_LEN, DIM).astype(np.float32)
     result_oop = llama_oop.silu(x)
     result_functional = llama_functional.silu(x)
-    assert(result_oop == result_functional).all()
+    assert (result_oop == result_functional).all()
 
 
 def test_compute_cos_sin_cache():
@@ -81,8 +81,9 @@ def test_apply_rotary_emb():
         xq, xk, freqs_cos, freqs_sin
     )
 
-    assert(result_oop_q == result_functional_q).all()
-    assert(result_oop_k == result_functional_k).all()
+    assert (result_oop_q == result_functional_q).all()
+    assert (result_oop_k == result_functional_k).all()
+
 
 def test_rmsnorm(random_input, model_args):
     weight = np.random.randn(DIM).astype(np.float32)
@@ -95,7 +96,7 @@ def test_rmsnorm(random_input, model_args):
     result_functional = llama_functional.rmsnorm(
         random_input, weight, model_args.norm_eps
     )
-    assert(result_oop == result_functional).all()
+    assert (result_oop == result_functional).all()
 
 
 def test_full_model_forward():
@@ -125,12 +126,12 @@ def test_full_model_forward():
     rel_diff = np.abs(diff / (np.abs(logits_functional) + 1e-9))
 
     print(f"Shape: {logits_oop.shape}")
-    print(f"Absolute differences:")
+    print("Absolute differences:")
     print(f"  Max: {np.max(diff):.2e}")
     print(f"  Mean: {np.mean(diff):.2e}")
     print(f"  Median: {np.median(diff):.2e}")
     print(f"  Std: {np.std(diff):.2e}")
-    print(f"\nRelative differences:")
+    print("\nRelative differences:")
     print(f"  Max: {np.max(rel_diff):.2e}")
     print(f"  Mean: {np.mean(rel_diff):.2e}")
     print(f"  Median: {np.median(rel_diff):.2e}")
@@ -164,6 +165,64 @@ def test_full_model_forward():
         "Top-k predictions differ between implementations"
     )
     assert_allclose(logits_oop, logits_functional, rtol=RTOL, atol=ATOL)
+
+
+def test_dtype_comparison():
+    '''
+    This test is used to compare the performance of the model with different dtypes.
+    '''
+    # Test parameters
+    args_fp32 = ModelArgs()
+    args_fp32.dtype = "float32"
+
+    args_fp16 = ModelArgs()
+    args_fp16.dtype = "float16"
+
+    # Initialize models with different dtypes
+    model_fp32 = llama_functional.llama_init("./stories15M.model.npz", args_fp32)
+    model_fp16 = llama_functional.llama_init("./stories15M.model.npz", args_fp16)
+
+    # Create same input for both models
+    input_ids = np.random.randint(0, 100, size=(1, 4), dtype=np.int32)
+    start_pos = 0
+
+    # Time and run forward passes
+    import time
+
+    # FP32 forward pass
+    start_fp32 = time.time()
+    logits_fp32 = llama_functional.llama_forward(model_fp32, input_ids, start_pos)
+    fp32_time = time.time() - start_fp32
+
+    # FP16 forward pass
+    start_fp16 = time.time()
+    logits_fp16 = llama_functional.llama_forward(model_fp16, input_ids, start_pos)
+    fp16_time = time.time() - start_fp16
+
+    print("\nPerformance:")
+    print(f"FP32 forward time: {fp32_time:.4f}s")
+    print(f"FP16 forward time: {fp16_time:.4f}s")
+    print(f"ratio (FP32/FP16): {fp32_time / fp16_time:.2f}x")
+
+    # Compare outputs
+    diff = np.abs(logits_fp32 - logits_fp16.astype(np.float32))
+
+    print("\nOutput differences (FP32 vs FP16):")
+    print(f"logits_fp32: {logits_fp32}")
+    print(f"logits_fp16: {logits_fp16}")
+    print(f"Max absolute diff: {np.max(diff):.2e}")
+    print(f"Mean absolute diff: {np.mean(diff):.2e}")
+    print(f"Median absolute diff: {np.median(diff):.2e}")
+
+    # Compare top-k predictions
+    k = 5
+    top_k_fp32 = np.argsort(logits_fp32[0, 0])[-k:][::-1]
+    top_k_fp16 = np.argsort(logits_fp16[0, 0])[-k:][::-1]
+
+    print(f"\nTop {k} predictions")
+    if not np.array_equal(top_k_fp32, top_k_fp16):
+        print("FP32 top-k:", top_k_fp32)
+        print("FP16 top-k:", top_k_fp16)
 
 
 if __name__ == "__main__":
