@@ -23,19 +23,26 @@ def silu(x):
 
 
 def compute_cos_sin_cache(head_dim, max_seq_len, base=10000, dtype=np.float32):
-    # Cast all numerical operations to the specified dtype
+    positions = np.arange(0, head_dim, 2, dtype=dtype)  # [0, 2, 4, ...]
+    positions = positions[: (head_dim // 2)]  # Take only half
+    dim_factors = positions / head_dim  # [0/dim, 2/dim, 4/dim, ...]
     base = dtype(base)
-    inv_freq = (
-        1.0
-        / (
-            base
-            ** (np.arange(0, head_dim, 2, dtype=dtype)[: (head_dim // 2)] / head_dim)
-        )
-    ).astype(dtype)
-    t = np.arange(max_seq_len, dtype=dtype)
-    freqs = np.outer(t, inv_freq).astype(dtype)
-    cos_result = np.cos(freqs).astype(dtype)
-    sin_result = np.sin(freqs).astype(dtype)
+    power_factors = base**dim_factors  # [base^0, base^(2/dim), ...]
+    inv_freq = 1.0 / power_factors  # [1/base^0, 1/base^(2/dim), ...]
+    timesteps = np.arange(max_seq_len, dtype=dtype)
+    freqs = np.zeros((max_seq_len, head_dim // 2), dtype=dtype)
+    for i in range(max_seq_len):
+        for j in range(head_dim // 2):
+            freqs[i, j] = (
+                timesteps[i] * inv_freq[j]
+            )  # [0 * 1/base^0, 1 * 1/base^(2/dim), 2 * 1/base^(4/dim), ...]
+    cos_result = np.cos(
+        freqs
+    )  # [cos(0 * 1/base^0), cos(1 * 1/base^(2/dim)), cos(2 * 1/base^(4/dim)), ...]
+    sin_result = np.sin(
+        freqs
+    )  # [sin(0 * 1/base^0), sin(1 * 1/base^(2/dim)), sin(2 * 1/base^(4/dim)), ...]
+
     return cos_result, sin_result
 
 
@@ -52,20 +59,16 @@ def apply_rotary_emb(xq, xk, freqs_cos, freqs_sin):
     xq_out_i = xq_r * freqs_sin + xq_i * freqs_cos
     xk_out_r = xk_r * freqs_cos - xk_i * freqs_sin
     xk_out_i = xk_r * freqs_sin + xk_i * freqs_cos
+
+    # Combine real and imaginary parts
     xq_out = np.stack([xq_out_r, xq_out_i], axis=-1).reshape(
         xq_out_r.shape[:-1] + (-1,)
     )
     xk_out = np.stack([xk_out_r, xk_out_i], axis=-1).reshape(
         xk_out_r.shape[:-1] + (-1,)
     )
+
     return xq_out, xk_out
-
-
-def repeat_kv(x, n_rep):
-    if n_rep == 1:
-        return x
-    result = np.repeat(x, n_rep, axis=2)
-    return result
 
 
 def feed_forward(x, up_weight, gate_weight, down_weight):
@@ -96,11 +99,7 @@ def attention(
 ):
     q_weight, k_weight, v_weight, o_weight = [w.T for w in attn_weights]
 
-    n_kv_heads = args.n_heads if args.n_kv_heads is None else args.n_kv_heads
-    assert args.n_heads % n_kv_heads == 0
     n_local_heads = args.n_heads
-    n_local_kv_heads = n_kv_heads
-    n_rep = n_local_heads // n_local_kv_heads
     head_dim = args.dim // args.n_heads
 
     batch_size, seq_len, _ = x.shape
@@ -110,8 +109,8 @@ def attention(
     xv = x @ v_weight
 
     xq = xq.reshape(batch_size, seq_len, n_local_heads, head_dim)
-    xk = xk.reshape(batch_size, seq_len, n_local_kv_heads, head_dim)
-    xv = xv.reshape(batch_size, seq_len, n_local_kv_heads, head_dim)
+    xk = xk.reshape(batch_size, seq_len, n_local_heads, head_dim)
+    xv = xv.reshape(batch_size, seq_len, n_local_heads, head_dim)
 
     xq, xk = apply_rotary_emb(xq, xk, freqs_cos, freqs_sin)
 
@@ -120,12 +119,9 @@ def attention(
     ks = cache_k[:batch_size, : start_pos + seq_len]
     vs = cache_v[:batch_size, : start_pos + seq_len]
 
-    xk = repeat_kv(ks, n_rep)
-    xv = repeat_kv(vs, n_rep)
-
     xq = xq.transpose(0, 2, 1, 3)
-    xk = xk.transpose(0, 2, 1, 3)
-    xv = xv.transpose(0, 2, 1, 3)
+    xk = ks.transpose(0, 2, 1, 3)
+    xv = vs.transpose(0, 2, 1, 3)
 
     attention_scores = (xq @ xk.transpose(0, 1, 3, 2)) / math.sqrt(head_dim)
     if mask is not None:
@@ -172,11 +168,10 @@ def transformer_block(
 def llama_init(model_path, args):
     dtype = getattr(np, args.dtype)
 
-    # Load and convert all weights to specified dtype immediately
     weights = load_parameters(model_path)
     weights = {k: v.astype(dtype) for k, v in weights.items()}
 
-    tok_embedding = weights["model.embed_tokens.weight"]  # Already in correct dtype
+    tok_embedding = weights["model.embed_tokens.weight"]
 
     freqs_cos, freqs_sin = compute_cos_sin_cache(
         args.dim // args.n_heads, args.max_seq_len, dtype=dtype
@@ -198,7 +193,7 @@ def llama_init(model_path, args):
         post_norm = weights[f"model.layers.{layer_id}.post_attention_layernorm.weight"]
         layer_blocks.append((attn_weights, ff_weights, in_norm, post_norm))
     norm_weight = weights["model.norm.weight"]
-    lm_head_weight = weights["lm_head.weight"].T  # Already in correct dtype
+    lm_head_weight = weights["lm_head.weight"].T
     del weights
 
     # Preallocate caches for all layers (list of np.arrays)
@@ -207,7 +202,7 @@ def llama_init(model_path, args):
             (
                 args.max_batch_size,
                 args.max_seq_len,
-                args.n_kv_heads if args.n_kv_heads else args.n_heads,
+                args.n_heads,
                 args.dim // args.n_heads,
             ),
             dtype=dtype,
