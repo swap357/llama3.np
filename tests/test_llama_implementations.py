@@ -26,7 +26,7 @@ RTOL = 2e-4
 
 def print_comparison_header():
     """Print header showing we're comparing the two implementations."""
-    print("\nllama3.py vs llama3_simple.py\n")
+    print("\nllama3.py vs llama3_simple.py")
 
 
 @pytest.fixture(autouse=True)
@@ -131,29 +131,30 @@ def test_full_model_forward():
     assert logits_oop.shape == logits_functional.shape == (1, 1, args.vocab_size)
 
     # Compare the actual values with detailed statistics
-    print("\nDetailed logits comparison:")
+    print("\nLogits comparison:")
 
     # Basic statistics
     diff = np.abs(logits_oop - logits_functional)
     rel_diff = np.abs(diff / (np.abs(logits_functional) + 1e-9))
 
     print(f"Shape: {logits_oop.shape}")
-    print("Absolute differences:")
-    print(f"  Max: {np.max(diff):.2e}")
-    print(f"  Mean: {np.mean(diff):.2e}")
-    print(f"  Median: {np.median(diff):.2e}")
-    print(f"  Std: {np.std(diff):.2e}")
+    print("\nAbsolute differences:")
+    print(f"Max: {np.max(diff):.2e}")
+    print(f"Mean: {np.mean(diff):.2e}")
+    print(f"Median: {np.median(diff):.2e}")
+    print(f"Std: {np.std(diff):.2e}")
+
     print("\nRelative differences:")
-    print(f"  Max: {np.max(rel_diff):.2e}")
-    print(f"  Mean: {np.mean(rel_diff):.2e}")
-    print(f"  Median: {np.median(rel_diff):.2e}")
-    print(f"  Std: {np.std(rel_diff):.2e}")
+    print(f"Max: {np.max(rel_diff):.2e}")
+    print(f"Mean: {np.mean(rel_diff):.2e}")
+    print(f"Median: {np.median(rel_diff):.2e}")
+    print(f"Std: {np.std(rel_diff):.2e}")
 
     # Distribution of differences
     percentiles = [50, 75, 90, 95, 99, 99.9]
     print("\nPercentiles of absolute differences:")
     for p in percentiles:
-        print(f"  {p}th: {np.percentile(diff, p):.2e}")
+        print(f"{p}th: {np.percentile(diff, p):.2e}")
 
     # Count elements exceeding various thresholds
     thresholds = [1e-6, 1e-5, 1e-4, 1e-3]
@@ -161,16 +162,15 @@ def test_full_model_forward():
     for t in thresholds:
         count = np.sum(diff > t)
         percent = count / diff.size * 100
-        print(f"  > {t:.0e}: {count} elements ({percent:.1f}%)")
+        print(f"> {t:.0e}: {count} elements ({percent:.1f}%)")
 
     # Compare top-k predictions
     k = 5
     top_k_oop = np.argsort(logits_oop[0, 0])[-k:][::-1]
     top_k_func = np.argsort(logits_functional[0, 0])[-k:][::-1]
-    print(f"\nTop {k} predictions match: {np.array_equal(top_k_oop, top_k_func)}")
-    if not np.array_equal(top_k_oop, top_k_func):
-        print("OOP top-k:", top_k_oop)
-        print("Functional top-k:", top_k_func)
+    print(f"\nTop {k} predictions:")
+    print("OOP:", top_k_oop)
+    print("Functional:", top_k_func)
 
     # Verify the differences don't affect the model's predictions
     assert np.array_equal(top_k_oop, top_k_func), (
