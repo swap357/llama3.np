@@ -11,10 +11,24 @@ from utils import load_parameters
 np.random.seed(42)
 
 
-def softmax(x):
-    exp_x = np.exp(x - np.max(x, axis=-1, keepdims=True))
-    result = exp_x / np.sum(exp_x, axis=-1, keepdims=True)
-    return result
+def softmax(x: np.ndarray, axis: int = -1) -> np.ndarray:
+    """
+    Compute softmax values for each set of scores in x.
+
+    Args:
+        x: Input array of shape (..., n)
+        axis: Axis along which to compute softmax (default: -1)
+
+    Returns:
+        Array of same shape as x with softmax values
+    """
+    # Subtract max for numerical stability
+    x_max = np.max(x, axis=axis, keepdims=True)
+    exp_x = np.exp(x - x_max)
+
+    # Add small epsilon to prevent division by zero
+    sum_exp = np.sum(exp_x, axis=axis, keepdims=True) + 1e-10
+    return exp_x / sum_exp
 
 
 def silu(x):
@@ -30,18 +44,9 @@ def compute_cos_sin_cache(head_dim, max_seq_len, base=10000, dtype=np.float32):
     power_factors = base**dim_factors  # [base^0, base^(2/dim), ...]
     inv_freq = 1.0 / power_factors  # [1/base^0, 1/base^(2/dim), ...]
     timesteps = np.arange(max_seq_len, dtype=dtype)
-    freqs = np.zeros((max_seq_len, head_dim // 2), dtype=dtype)
-    for i in range(max_seq_len):
-        for j in range(head_dim // 2):
-            freqs[i, j] = (
-                timesteps[i] * inv_freq[j]
-            )
-    cos_result = np.cos(
-        freqs
-    )
-    sin_result = np.sin(
-        freqs
-    )
+    freqs = np.outer(timesteps, inv_freq)
+    cos_result = np.cos(freqs)
+    sin_result = np.sin(freqs)
 
     return cos_result, sin_result
 
