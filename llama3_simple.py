@@ -11,24 +11,9 @@ from utils import load_parameters
 np.random.seed(42)
 
 
-def softmax(x: np.ndarray, axis: int = -1) -> np.ndarray:
-    """
-    Compute softmax values for each set of scores in x.
-
-    Args:
-        x: Input array of shape (..., n)
-        axis: Axis along which to compute softmax (default: -1)
-
-    Returns:
-        Array of same shape as x with softmax values
-    """
-    # Subtract max for numerical stability
-    x_max = np.max(x, axis=axis, keepdims=True)
-    exp_x = np.exp(x - x_max)
-
-    # Add small epsilon to prevent division by zero
-    sum_exp = np.sum(exp_x, axis=axis, keepdims=True) + 1e-10
-    return exp_x / sum_exp
+def softmax(x):
+    exp_x = np.exp(x - np.max(x, axis=-1, keepdims=True))
+    return exp_x / np.sum(exp_x, axis=-1, keepdims=True)
 
 
 def silu(x):
